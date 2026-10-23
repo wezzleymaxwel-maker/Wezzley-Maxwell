@@ -1,0 +1,26 @@
+ÚLTIMA ZONA — VERSÃO PORTÁTIL
+
+COMO JOGAR
+1. Extraia o ZIP completo para uma pasta do computador.
+2. Abra JOGAR.html com Google Chrome, Microsoft Edge ou Firefox atualizado.
+3. Pressione Jogar agora. Permita a captura do mouse quando o navegador pedir.
+
+Não precisa instalar Node.js, abrir terminal ou manter conexão com a internet.
+O jogo é single-player e todos os adversários são bots.
+
+CONTROLES
+WASD: mover; mouse: olhar; clique esquerdo: atirar; direito: mirar.
+Shift: correr; Ctrl: agachar; Espaço: pular.
+E: coletar; R: recarregar; F: curar; 1–5: selecionar armas coletadas.
+Tab: inventário; M: mapa; Esc: pausar/liberar mouse.
+
+SE NÃO ABRIR
+Use um navegador desktop com WebGL2 e aceleração de hardware ativada.
+Não abra a página dentro da visualização do ZIP, e sim após extrair.
+Se o navegador não capturar o mouse, clique na tela e pressione Continuar.
+Em computador mais lento, escolha qualidade Baixo nas configurações.
+Fechar a aba encerra o jogo. Não há instalação de serviços ou gravação de partidas.
+
+O diretório codigo-fonte contém o projeto para desenvolvimento.
+Consulte codigo-fonte/README.md para requisitos, testes e limitações atuais.
+A versão empacotada é uma primeira versão jogável com modelos e áudio procedurais.

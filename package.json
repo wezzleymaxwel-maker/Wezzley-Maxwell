@@ -1,0 +1,31 @@
+{
+  "name": "ultima-zona",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc --noEmit && vite build",
+    "test": "tsx --test src/*.test.ts && node --test scripts/package.test.mjs",
+    "preview": "vite preview --host 0.0.0.0",
+    "test:browser": "node tests/browser.mjs",
+    "package": "npm run build && node scripts/package.mjs",
+    "test:package": "node scripts/verify-package.mjs",
+    "test:stability": "node tests/stability.mjs"
+  },
+  "dependencies": {
+    "three": "^0.180.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@types/node": "^26.6.5",
+    "@types/three": "^0.180.0",
+    "prettier": "^3.9.10",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.12"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}
