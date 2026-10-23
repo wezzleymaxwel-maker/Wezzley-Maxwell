@@ -2,16 +2,28 @@ import * as T from "three";
 import { World } from "./world";
 import { WEAPONS, SafeZone, applyDamage, reloadMagazine } from "./rules";
 import { Sound } from "./audio";
-import { lineClear, traceShot } from "./combat";
+import { lineClear, traceShot, prepareWorldQueries } from "./combat";
 import "./style.css";
 import { batchScenery, disposeObject } from "./rendering";
 import { readPreferences, writePreferences } from "./settings";
 import { tickTimer, FixedStep } from "./lifecycle";
 import { Navigation } from "./navigation";
+import {
+  createWeapon,
+  createArms,
+  createOperator,
+  animateOperator,
+  updateOperatorDetail,
+  updateOperatorAppearance,
+} from "./models";
+import { createSupply } from "./supplies";
+import { setupAtmosphere } from "./atmosphere";
+import { AdaptiveResolution } from "./performance";
+import { gasMaterial } from "./gas-visual";
 function bootstrap() {
   const preferences = readPreferences();
   const app = document.querySelector<HTMLDivElement>("#app")!;
-  app.innerHTML = `<div id="menu"><div class="eyebrow">Operação 01 / Vale do silêncio</div><h1>ÚLTIMA<br><span>ZONA.</span></h1><div class="tag">SINGLE PLAYER · 25 SOBREVIVENTES · UMA CHANCE</div><p>O silêncio não significa segurança.<br>Explore o vale, encontre seu equipamento e seja o último a sair de pé.</p><nav><button class="primary" id="play">Jogar agora ↗</button><button id="custom">Zezé</button><button id="settings">Configurações</button><button id="how">Como jogar</button></nav><div class="footer">PRIMEIRA VERSÃO JOGÁVEL / ASSETS PROCEDURAIS</div><div class="badge"><strong>24</strong>ADVERSÁRIOS.<br>NENHUM ALIADO.</div></div><div id="hud"><div id="compass"></div><div id="zone"></div><div id="stats"></div><canvas id="radar" width="360" height="360"></canvas><div id="feed"></div><div id="cross">+</div><div id="prompt"></div><div id="vitals"></div><div id="weapon"></div><div id="help">WASD MOVER · SHIFT CORRER · CTRL AGACHAR · E COLETAR · R RECARREGAR · F CURAR · TAB INVENTÁRIO · M MAPA · ESC PAUSA</div></div><div id="scope"></div><div id="overlay"></div>`;
+  app.innerHTML = `<div id="menu"><div class="eyebrow">Operação 01 / Vale do silêncio</div><h1>ÚLTIMA<br><span>ZONA.</span></h1><div class="tag">SINGLE PLAYER · 25 SOBREVIVENTES · UMA CHANCE</div><p>O silêncio não significa segurança.<br>Explore o vale, encontre seu equipamento e seja o último a sair de pé.</p><nav><button class="primary" id="play">Jogar agora ↗</button><button id="custom">Zezé</button><button id="settings">Configurações</button><button id="how">Como jogar</button></nav><div class="footer">VALE DO SILÊNCIO / EDIÇÃO 0.3</div><div class="badge"><strong>24</strong>ADVERSÁRIOS.<br>NENHUM ALIADO.</div></div><div id="hud"><div id="compass"></div><div id="zone"></div><div id="stats"></div><canvas id="radar" width="360" height="360"></canvas><div id="feed"></div><div id="cross">+</div><div id="prompt"></div><div id="vitals"></div><div id="weapon"></div><div id="help">WASD MOVER · SHIFT CORRER · CTRL AGACHAR · E COLETAR · R RECARREGAR · F CURAR · TAB INVENTÁRIO · M MAPA · ESC PAUSA</div></div><div id="scope"></div><div id="overlay"></div>`;
   const $ = (id: string) => document.getElementById(id)!;
   const renderer = new T.WebGLRenderer({ antialias: true });
   renderer.domElement.className = "game";
@@ -51,62 +63,28 @@ function bootstrap() {
   scene.add(sun, sun.target);
   const world = new World(scene);
   batchScenery(scene);
+  prepareWorldQueries(world.solids);
+  const atmosphere = setupAtmosphere(scene, renderer, camera, sun);
+  const governor = new AdaptiveResolution(
+    preferences.quality,
+    devicePixelRatio,
+  );
   const sound = new Sound();
   const up = new T.Vector3(0, 1, 0);
   const view = new T.Group();
   camera.add(view);
-  const skinMat = new T.MeshStandardMaterial({ color: preferences.skin });
-  const gloveMat = new T.MeshStandardMaterial({ color: preferences.outfit });
-  let outfit = parseInt(preferences.outfit.slice(1), 16);
-  function box(
-    w: number,
-    h: number,
-    d: number,
-    color: number,
-    x = 0,
-    y = 0,
-    z = 0,
-  ) {
-    const m = new T.Mesh(
-      new T.BoxGeometry(w, h, d),
-      new T.MeshStandardMaterial({ color, roughness: 0.75 }),
-    );
-    m.position.set(x, y, z);
-    m.castShadow = true;
-    return m;
-  }
-  function gun(type: number) {
-    const g = new T.Group();
-    const lengths = [0.34, 0.8, 0.65, 0.3, 1.1];
-    g.add(box(0.12, 0.15, lengths[type], 0x283332, 0, 0, -lengths[type] / 2));
-    g.add(box(0.065, 0.065, 0.32, 0x141e1d, 0, 0.02, -lengths[type] - 0.1));
-    g.add(box(0.09, 0.24, 0.12, 0x675a42, 0, -0.16, -0.12));
-    if (type === 4) g.add(box(0.1, 0.1, 0.35, 0x101b1a, 0, 0.14, -0.4));
-    if (type === 2) g.add(box(0.2, 0.22, 0.24, 0x4b5546, 0, -0.2, -0.3));
-    g.add(box(0.08, 0.06, 0.09, 0x88a298, 0, 0.1, -0.15));
-    return g;
-  }
+  const gun = (type: number) => createWeapon(type);
   let viewGun = gun(0);
-  view.add(viewGun);
-  view.add(new T.Mesh(new T.BoxGeometry(0.12, 0.14, 0.48), skinMat));
-  view.children[1].position.set(0.02, -0.22, 0.12);
-  const glove = new T.Mesh(new T.BoxGeometry(0.14, 0.15, 0.15), gloveMat);
-  glove.position.set(0.02, -0.2, -0.1);
-  view.add(glove);
-  view.position.set(0.28, -0.28, -0.65);
-  view.scale.setScalar(0.65);
+  let arms = createArms(preferences.skin, preferences.outfit);
+  view.add(viewGun, arms);
+  view.position.set(0.24, -0.25, -0.55);
+  view.scale.setScalar(0.72);
   const flash = new T.PointLight(0xffc65e, 0, 7);
   view.add(flash);
   flash.position.set(0, 0, -1);
   const gas = new T.Mesh(
     new T.CylinderGeometry(1, 1, 90, 96, 1, true),
-    new T.MeshBasicMaterial({
-      color: 0xa5cc59,
-      transparent: true,
-      opacity: 0.22,
-      side: T.DoubleSide,
-      depthWrite: false,
-    }),
+    gasMaterial(),
   );
   scene.add(gas);
   type State =
@@ -151,6 +129,9 @@ function bootstrap() {
     target?: Actor;
     reaction: number;
     stuck: number;
+    previous: T.Vector3;
+    previousYaw: number;
+    moving: boolean;
   };
   let actors: Actor[] = [],
     player: Actor,
@@ -235,31 +216,27 @@ function bootstrap() {
       perceive: 0,
       reaction: 0,
       stuck: 0,
+      previous: pos.clone(),
+      previousYaw: 0,
+      moving: false,
     };
   }
   function model(a: Actor) {
-    const g = new T.Group();
-    g.add(
-      box(0.55, 0.7, 0.32, [0x687951, 0x86755b, 0x50676c][a.tier], 0, 1.12),
-    );
-    g.add(box(0.32, 0.34, 0.32, 0xab8061, 0, 1.67));
-    g.add(box(0.36, 0.12, 0.37, 0x414f38, 0, 1.86));
-    const legs = [
-      box(0.18, 0.65, 0.2, 0x293932, -0.16, 0.42),
-      box(0.18, 0.65, 0.2, 0x293932, 0.16, 0.42),
-    ];
-    g.add(...legs);
-    g.add(
-      box(0.16, 0.55, 0.18, 0x796447, -0.36, 1.12),
-      box(0.16, 0.55, 0.18, 0x796447, 0.36, 1.12),
-    );
-    const w = gun(a.weapon);
-    w.position.set(0.3, 1.1, -0.3);
-    g.add(w);
+    const g = createOperator({
+      skin:
+        a.id === 0
+          ? preferences.skin
+          : ["#9c7352", "#be9473", "#74543e"][a.id % 3],
+      outfit:
+        a.id === 0
+          ? preferences.outfit
+          : ["#58654e", "#6b6652", "#475b55"][a.tier],
+      weapon: a.weapon,
+    });
     g.position.copy(a.pos);
+    g.userData.equippedWeapon = a.weapon;
     scene.add(g);
     a.model = g;
-    a.legs = legs;
   }
   function randomPoint() {
     for (let i = 0; i < 100; i++) {
@@ -296,11 +273,12 @@ function bootstrap() {
       const w = gun(type);
       w.rotation.z = Math.PI / 2;
       g.add(w);
-    } else g.add(box(0.35, 0.2, 0.3, colors[type]));
+    } else g.add(createSupply(type));
     const marker = new T.Mesh(
-      new T.CylinderGeometry(0.2, 0.3, 0.02, 12),
+      new T.RingGeometry(0.18, 0.21, 24),
       new T.MeshBasicMaterial({ color: colors[type] }),
     );
+    marker.rotation.x = -Math.PI / 2;
     marker.position.y = -0.15;
     g.add(marker);
     g.position.copy(pos);
@@ -318,13 +296,14 @@ function bootstrap() {
     zone = new SafeZone();
     elapsed = 0;
     feed = [];
-    yaw = 0;
+    yaw = Math.PI;
     pitch = 0;
     vy = 0;
     vx = 0;
     vz = 0;
     paths.clear();
     navTimers.clear();
+    directPaths.clear();
     keys.clear();
     clearInput();
     grounded = true;
@@ -354,15 +333,13 @@ function bootstrap() {
       a.weapon = i % 5;
       a.owned[a.weapon] = true;
       a.goal = randomPoint();
+      a.perceive = (i % 8) * 0.04;
       model(a);
       actors.push(a);
     }
     world.lootPoints.forEach((p) => addLoot(p, Math.floor(Math.random() * 9)));
     for (let i = 0; i < 5; i++)
-      addLoot(
-        player.pos.clone().add(new T.Vector3((i - 2) * 1.5, 0.35, -3)),
-        i,
-      );
+      addLoot(player.pos.clone().add(new T.Vector3((i - 2) * 1.5, 0.35, 3)), i);
     running = true;
     paused = false;
     $("menu").style.display = "none";
@@ -378,7 +355,9 @@ function bootstrap() {
     player.reload = 0;
     disposeObject(viewGun);
     viewGun = gun(i);
-    view.add(viewGun);
+    disposeObject(arms);
+    arms = createArms(preferences.skin, preferences.outfit, i);
+    view.add(viewGun, arms);
     recoil = 0.025;
   }
   function panel(html: string) {
@@ -418,15 +397,15 @@ function bootstrap() {
     paused = false;
     document.exitPointerLock();
     $("menu").style.display = "flex";
-    camera.position.set(15, 24, 115);
-    camera.lookAt(0, 1, 35);
+    camera.position.set(18, 12, 117);
+    camera.lookAt(0, 3, 74);
     $("hud").style.display = "none";
     $("overlay").style.display = "none";
     $("scope").style.display = "none";
   }
   function settings() {
     panel(
-      `<h2>Configurações</h2><label>Sensibilidade <input id="sens" type="range" min="0.0005" max="0.006" step="0.0001" value="${sensitivity}"></label><label>Volume <input id="volume" type="range" min="0" max="1" step=".05" value="${sound.volume}"></label><label>Qualidade <select id="quality"><option value="baixo">Baixo</option><option value="medio">Médio</option><option value="alto">Alto</option></select></label><button id="back">Concluir</button>`,
+      `<h2>Configurações</h2><label>Sensibilidade <input id="sens" type="range" min="0.0005" max="0.006" step="0.0001" value="${sensitivity}"></label><label>Volume <input id="volume" type="range" min="0" max="1" step=".05" value="${sound.volume}"></label><label>Qualidade <select id="quality"><option value="baixo">Baixo</option><option value="medio">Médio</option><option value="alto">Alto</option></select></label><p>Baixo reduz sombras e vegetação decorativa. A resolução se ajusta ao desempenho durante a partida.</p><button id="back">Concluir</button>`,
     );
     ($("quality") as HTMLSelectElement).value = quality;
     $("back").onclick = () => {
@@ -463,9 +442,14 @@ function bootstrap() {
     const a = actor(0, new T.Vector3());
     model(a);
     s.add(a.model!);
+    s.environment = scene.environment;
+    s.environmentIntensity = 0.5;
+    const portraitLight = new T.DirectionalLight(0xffe5ca, 2);
+    portraitLight.position.set(-2, 4, 3);
+    s.add(portraitLight);
     const c = new T.PerspectiveCamera(40, 1, 0.1, 20);
-    c.position.set(2, 1.5, 4);
-    c.lookAt(0, 1, 0);
+    c.position.set(1.2, 1.18, 2.4);
+    c.lookAt(0, 0.98, 0);
     const r = new T.WebGLRenderer({
       canvas: $("portrait") as HTMLCanvasElement,
       antialias: true,
@@ -474,13 +458,7 @@ function bootstrap() {
     const preview = () => {
       const cloth = ($("outfit") as HTMLInputElement).value,
         skin = ($("skin") as HTMLInputElement).value;
-      (
-        (a.model!.children[0] as T.Mesh).material as T.MeshStandardMaterial
-      ).color.set(cloth);
-      for (const i of [1, 5, 6])
-        (
-          (a.model!.children[i] as T.Mesh).material as T.MeshStandardMaterial
-        ).color.set(skin);
+      updateOperatorAppearance(a.model!, skin, cloth);
       r.render(s, c);
     };
     preview();
@@ -494,9 +472,7 @@ function bootstrap() {
     $("done").onclick = () => {
       preferences.outfit = ($("outfit") as HTMLInputElement).value;
       preferences.skin = ($("skin") as HTMLInputElement).value;
-      outfit = parseInt(preferences.outfit.slice(1), 16);
-      gloveMat.color.set(outfit);
-      skinMat.color.set(preferences.skin);
+      updateOperatorAppearance(arms, preferences.skin, preferences.outfit);
       writePreferences(preferences);
       portraitCleanup?.();
       portraitCleanup = undefined;
@@ -504,15 +480,17 @@ function bootstrap() {
     };
   };
   function applyPreferences() {
-    renderer.setPixelRatio(
-      quality === "baixo"
-        ? 0.75
-        : quality === "medio"
-          ? Math.min(devicePixelRatio, 1.25)
-          : Math.min(devicePixelRatio, 1.75),
-    );
+    renderer.setPixelRatio(governor.setQuality(quality, devicePixelRatio));
+    world.setQuality(quality);
     renderer.shadowMap.enabled = quality !== "baixo";
-    camera.far = quality === "baixo" ? 420 : 800;
+    renderer.shadowMap.needsUpdate = true;
+    camera.far = quality === "baixo" ? 420 : quality === "medio" ? 650 : 800;
+    sun.shadow.mapSize.set(
+      quality === "alto" ? 2048 : 1024,
+      quality === "alto" ? 2048 : 1024,
+    );
+    sun.shadow.map?.dispose();
+    sun.shadow.map = null;
     camera.updateProjectionMatrix();
     sound.volume = preferences.volume;
   }
@@ -677,27 +655,32 @@ function bootstrap() {
         hit = actors.find((b) => b.id === result.targetId),
         head = result.head;
       const dest = origin.clone().addScaledVector(dir, max);
-      const line = new T.Line(
-        new T.BufferGeometry().setFromPoints([origin, dest]),
-        new T.LineBasicMaterial({
-          color: 0xffd899,
-          transparent: true,
-          opacity: 0.6,
-        }),
-      );
-      if (effects.length >= 128) {
-        const oldest = effects.shift();
-        if (oldest) disposeObject(oldest.mesh);
+      if (a === player || a.pos.distanceToSquared(player.pos) < 160 * 160) {
+        const line = new T.Line(
+          new T.BufferGeometry().setFromPoints([origin, dest]),
+          new T.LineBasicMaterial({
+            color: 0xffd899,
+            transparent: true,
+            opacity: 0.6,
+          }),
+        );
+        if (effects.length >= 128) {
+          const oldest = effects.shift();
+          if (oldest) disposeObject(oldest.mesh);
+        }
+        scene.add(line);
+        effects.push({ mesh: line, life: 0.065 });
       }
-      scene.add(line);
-      effects.push({ mesh: line, life: 0.065 });
       if (hit) {
         const fall =
           a.weapon === 1
             ? Math.max(0.12, 1 - max / 65)
             : Math.max(0.45, 1 - max / (w.range * 2));
         damage(hit, w.damage * fall * (head ? 1.8 : 1), a);
-      } else if (max < w.range) {
+      } else if (
+        max < w.range &&
+        dest.distanceToSquared(player.pos) < 110 * 110
+      ) {
         const mark = new T.Mesh(
           new T.SphereGeometry(0.055, 4, 4),
           new T.MeshBasicMaterial({ color: 0xffcf8a }),
@@ -771,32 +754,49 @@ function bootstrap() {
     drawMap($("bigmap") as HTMLCanvasElement);
     $("return").onclick = resume;
   }
+  const hudHTML = new Map<string, string>();
+  function setHTML(id: string, html: string) {
+    if (hudHTML.get(id) === html) return;
+    hudHTML.set(id, html);
+    $(id).innerHTML = html;
+  }
+  let mapBackground: HTMLCanvasElement | undefined;
   function drawMap(canvas: HTMLCanvasElement) {
     const c = canvas.getContext("2d")!,
       size = canvas.width,
       s = size / 700,
       px = (x: number) => (x + 350) * s;
-    c.clearRect(0, 0, size, size);
-    c.fillStyle = "#233b30";
-    c.fillRect(0, 0, size, size);
-    c.strokeStyle = "#54705a";
-    c.lineWidth = 1;
-    for (let i = 0; i < 700; i += 50) {
-      c.beginPath();
-      c.moveTo(i * s, 0);
-      c.lineTo(i * s, size);
-      c.moveTo(0, i * s);
-      c.lineTo(size, i * s);
-      c.stroke();
+    if (!mapBackground) {
+      mapBackground = document.createElement("canvas");
+      mapBackground.width = mapBackground.height = 700;
+      const base = mapBackground.getContext("2d")!;
+      base.fillStyle = "#233b30";
+      base.fillRect(0, 0, 700, 700);
+      base.strokeStyle = "#54705a";
+      for (let i = 0; i < 700; i += 50) {
+        base.beginPath();
+        base.moveTo(i, 0);
+        base.lineTo(i, 700);
+        base.moveTo(0, i);
+        base.lineTo(700, i);
+        base.stroke();
+      }
+      base.fillStyle = "#728071";
+      for (const b of world.boxes)
+        base.fillRect(
+          b.minX + 350,
+          b.minZ + 350,
+          b.maxX - b.minX,
+          b.maxZ - b.minZ,
+        );
+      base.fillStyle = "#c6ceab";
+      base.font = "bold 10px sans-serif";
+      base.textAlign = "center";
+      for (const r of world.regions)
+        base.fillText(r.name, r.x + 350, r.z + 350);
     }
-    c.fillStyle = "#728071";
-    for (const b of world.boxes)
-      c.fillRect(
-        px(b.minX),
-        px(b.minZ),
-        (b.maxX - b.minX) * s,
-        (b.maxZ - b.minZ) * s,
-      );
+    c.clearRect(0, 0, size, size);
+    c.drawImage(mapBackground, 0, 0, size, size);
     c.strokeStyle = "#cbe76c";
     c.lineWidth = 2;
     c.beginPath();
@@ -924,6 +924,11 @@ function bootstrap() {
   });
   const paths = new Map<number, T.Vector3[]>(),
     navTimers = new Map<number, number>();
+  const directPaths = new Map<
+    number,
+    { goal: T.Vector3; direct: boolean; time: number }
+  >();
+  let navigationBudget = 2;
   const navigation = new Navigation(
     world.boxes.filter(
       (b) =>
@@ -942,8 +947,24 @@ function bootstrap() {
     if (dist < 1) return;
     let path = paths.get(a.id);
     let timer = (navTimers.get(a.id) ?? 0) - dt;
-    const direct = navigation.canTraverse(a.pos, goal);
-    if (!direct && timer <= 0) {
+    let cached = directPaths.get(a.id);
+    if (cached) cached.time -= dt;
+    if (
+      !cached ||
+      cached.time <= 0 ||
+      cached.goal.distanceToSquared(goal) > 9 ||
+      a.stuck > 0.5
+    ) {
+      cached = {
+        goal: goal.clone(),
+        direct: navigation.canTraverse(a.pos, goal),
+        time: 0.4 + (a.id % 3) * 0.03,
+      };
+      directPaths.set(a.id, cached);
+    }
+    const direct = cached.direct;
+    if (!direct && timer <= 0 && navigationBudget > 0) {
+      navigationBudget--;
       path = navigation.route(a.pos, goal);
       paths.set(a.id, path);
       timer = 2 + Math.random();
@@ -962,6 +983,7 @@ function bootstrap() {
       .multiplyScalar(speed * dt);
     const p = world.move(a.pos, delta);
     const moved = p.distanceTo(a.pos);
+    a.moving = moved > dt * 0.2;
     a.stuck = moved < dt * 0.2 ? a.stuck + dt : 0;
     if (a.stuck > 1) {
       a.goal = randomPoint();
@@ -1161,6 +1183,11 @@ function bootstrap() {
     hudTimer = 0,
     footTimer = 0;
   function update(dt: number) {
+    for (const actor of actors) {
+      actor.previous.copy(actor.pos);
+      actor.previousYaw = actor.yaw;
+      actor.moving = false;
+    }
     elapsed += dt;
     const oldState = zone.state;
     zone.update(dt);
@@ -1269,14 +1296,6 @@ function bootstrap() {
     for (const a of actors.slice(1)) {
       bot(a, dt);
       if (!running) return;
-      if (a.model && a.alive) {
-        a.model.position.copy(a.pos);
-        a.model.rotation.y = a.yaw;
-        if (a.legs) {
-          a.legs[0].rotation.x = Math.sin(elapsed * 8 + a.id) * 0.5;
-          a.legs[1].rotation.x = -Math.sin(elapsed * 8 + a.id) * 0.5;
-        }
-      }
     }
     for (const n of noises) n.life -= dt;
     noises = noises.filter((n) => n.life > 0);
@@ -1316,12 +1335,17 @@ function bootstrap() {
         `FASE ${Math.min(6, zone.phase + 1)} · ${zone.state === "waiting" ? "FECHA EM" : zone.state === "closing" ? "FECHANDO" : "ZONA FINAL"} ${Math.ceil(zone.time)}s ${zone.outside(player.pos.x, player.pos.z) ? `· GÁS! ${Math.ceil(zone.distance(player.pos.x, player.pos.z))}m ATÉ A ZONA` : ""}`;
       $("compass").textContent =
         `N · ${T.MathUtils.euclideanModulo((-yaw * 180) / Math.PI, 360).toFixed(0)}° · L · S · O`;
-      $("vitals").innerHTML =
-        `<small>ZEZÉ / OPERADOR 01</small><p>${Math.ceil(player.hp)} VIDA · ${Math.ceil(player.armor)} COLETE</p><progress value="${player.hp}" max="100"></progress><p>${player.meds} KITS ${player.heal > 0 ? `· CURANDO ${player.heal.toFixed(1)}s` : ""}</p>`;
-      $("weapon").innerHTML = !player.owned[player.weapon]
-        ? "<small>SEM ARMA</small><p>Encontre equipamento e colete com E</p>"
-        : `<small>${WEAPONS[player.weapon].name}</small><br><b>${player.mag[player.weapon]}</b> / ${player.reserve[player.weapon]}<br>${player.reload > 0 ? `RECARREGANDO ${player.reload.toFixed(1)}s` : "1 — 5 / EQUIPAMENTO"}`;
-      $("feed").innerHTML = feed.join("<br>");
+      setHTML(
+        "vitals",
+        `<small>ZEZÉ / OPERADOR 01</small><p>${Math.ceil(player.hp)} VIDA · ${Math.ceil(player.armor)} COLETE</p><progress value="${player.hp}" max="100"></progress><p>${player.meds} KITS ${player.heal > 0 ? `· CURANDO ${player.heal.toFixed(1)}s` : ""}</p>`,
+      );
+      setHTML(
+        "weapon",
+        !player.owned[player.weapon]
+          ? "<small>SEM ARMA</small><p>Encontre equipamento e colete com E</p>"
+          : `<small>${WEAPONS[player.weapon].name}</small><br><b>${player.mag[player.weapon]}</b> / ${player.reserve[player.weapon]}<br>${player.reload > 0 ? `RECARREGANDO ${player.reload.toFixed(1)}s` : "1 — 5 / EQUIPAMENTO"}`,
+      );
+      setHTML("feed", feed.join("<br>"));
       const nearby = loot.find(
         (l) =>
           l.pos.distanceTo(camera.position) < 3 &&
@@ -1345,17 +1369,77 @@ function bootstrap() {
       const dt = Math.max(0, (now - last) / 1000);
       last = now;
       if (contextLost || failed) return;
+      navigationBudget = 2;
       if (running && !paused)
         simulation.advance(dt, (step) => {
           if (running && !paused) update(step);
         });
       else simulation.reset();
       if (!running && $("menu").style.display !== "none") {
-        camera.position.set(15, 24, 115);
-        camera.lookAt(0, 1, 35);
+        camera.position.set(18, 12, 117);
+        camera.lookAt(0, 3, 74);
       }
-      sun.position.set(camera.position.x + 80, 140, camera.position.z + 70);
-      sun.target.position.set(camera.position.x, 0, camera.position.z);
+      const changedScale = governor.update(
+        dt * 1000,
+        running && !paused && !document.hidden,
+      );
+      if (changedScale !== null) renderer.setPixelRatio(changedScale);
+      if (running && player) {
+        if (!paused) {
+          camera.position.lerpVectors(
+            player.previous,
+            player.pos,
+            simulation.alpha,
+          );
+          camera.position.y +=
+            (keys.has("ControlLeft") ? 1.05 : 1.65) +
+            Math.sin(bob) * 0.025 * Math.min(1, Math.hypot(vx, vz));
+          camera.rotation.set(pitch, yaw, 0);
+        }
+        for (const a of actors) {
+          if (!a.model || !a.alive) continue;
+          if (a.model.userData.equippedWeapon !== a.weapon) {
+            const held = a.model.getObjectByName("heldWeapon");
+            if (held) disposeObject(held);
+            const replacement = gun(a.weapon);
+            replacement.name = "heldWeapon";
+            replacement.position.set(0.22, 1.12, -0.24);
+            a.model.getObjectByName("detail")?.add(replacement);
+            a.model.userData.equippedWeapon = a.weapon;
+          }
+          const distance = player.pos.distanceTo(a.pos);
+          updateOperatorDetail(a.model, distance, quality);
+          if (!paused) {
+            a.model.position.lerpVectors(a.previous, a.pos, simulation.alpha);
+            a.model.rotation.y =
+              a.previousYaw +
+              (T.MathUtils.euclideanModulo(
+                a.yaw - a.previousYaw + Math.PI,
+                Math.PI * 2,
+              ) -
+                Math.PI) *
+                simulation.alpha;
+            animateOperator(a.model, elapsed, a.moving);
+          }
+        }
+        for (const l of loot)
+          l.mesh.visible =
+            l.pos.distanceToSquared(camera.position) <
+            (quality === "baixo" ? 45 * 45 : 75 * 75);
+      }
+      atmosphere.update(camera);
+      (gas.material as T.ShaderMaterial).uniforms.time.value = elapsed;
+      const shadowTexel = 200 / sun.shadow.mapSize.x;
+      const shadowX = Math.round(camera.position.x / shadowTexel) * shadowTexel,
+        shadowZ = Math.round(camera.position.z / shadowTexel) * shadowTexel;
+      const shadowMoved =
+        Math.abs(sun.target.position.x - shadowX) > 0.01 ||
+        Math.abs(sun.target.position.z - shadowZ) > 0.01;
+      sun.position.set(shadowX + 80, 140, shadowZ + 70);
+      sun.target.position.set(shadowX, 0, shadowZ);
+      renderer.shadowMap.autoUpdate = running && !paused;
+      if (shadowMoved || renderer.shadowMap.autoUpdate)
+        renderer.shadowMap.needsUpdate = true;
       renderer.render(scene, camera);
     } catch (error) {
       failed = true;
@@ -1377,6 +1461,13 @@ function bootstrap() {
           loot: loot.length,
           zoneRadius: zone.radius,
           graphics: { ...renderer.info.memory },
+          render: {
+            calls: renderer.info.render.calls,
+            triangles: renderer.info.render.triangles,
+          },
+          frameMs: governor.frameMs,
+          fps: governor.fps,
+          resolution: governor.scale,
           reloading: player?.reload ?? 0,
           healing: player?.heal ?? 0,
           equipped: player ? player.owned[player.weapon] : false,
@@ -1389,7 +1480,10 @@ function bootstrap() {
   if (import.meta.env.DEV && new URLSearchParams(location.search).has("test")) {
     Object.assign((window as unknown as { ultimaZona: object }).ultimaZona, {
       advance(seconds: number) {
-        for (let t = 0; t < seconds && running; t += 0.1) update(0.1);
+        for (let t = 0; t < seconds && running; t += 0.1) {
+          navigationBudget = 2;
+          update(0.1);
+        }
         return {
           elapsed,
           alive: actors.filter((a) => a.alive).length,
@@ -1425,6 +1519,7 @@ function bootstrap() {
           pitch = 0;
           vy = 0;
           player.pos.set(-12, world.ground(-12, 12), 12);
+          player.previous.copy(player.pos);
           player.hp = 100;
           player.armor = 0;
           player.cool = 0;
@@ -1445,6 +1540,7 @@ function bootstrap() {
           opponent.meds = 0;
           opponent.memory = opponent.pos.clone();
           opponent.memoryTime = 999;
+          opponent.previous.copy(opponent.pos);
           opponent.cool = 60;
           opponent.reaction = 60;
           opponent.perceive = 60;

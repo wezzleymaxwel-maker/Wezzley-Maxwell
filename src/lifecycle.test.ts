@@ -24,3 +24,15 @@ test("simulation uses bounded fixed steps and clears paused time", () => {
   clock.advance(0.012, () => frames++);
   assert.equal(frames, 6);
 });
+
+test("render interpolation stays bounded between fixed simulation positions", () => {
+  const clock = new FixedStep();
+  let time = 0;
+  clock.advance(0.025, (dt) => (time += dt));
+  assert(Math.abs(time - 1 / 60) < 1e-9);
+  assert(Math.abs(clock.alpha - 0.5) < 1e-9);
+  clock.advance(0.008, (dt) => (time += dt));
+  assert(clock.alpha > 0.9 && clock.alpha < 1);
+  clock.reset();
+  assert.equal(clock.alpha, 0);
+});

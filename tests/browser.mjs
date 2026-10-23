@@ -16,6 +16,13 @@ try {
     }),
     errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
+  page.on("console", (message) => {
+    if (
+      message.type() === "error" &&
+      /WebGL|Shader Error|GL_INVALID|VALIDATE_STATUS/i.test(message.text())
+    )
+      errors.push(message.text());
+  });
   await page.addInitScript(() =>
     localStorage.setItem(
       "ultima-settings",

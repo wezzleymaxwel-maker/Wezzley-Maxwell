@@ -1,10 +1,10 @@
 # ÚLTIMA ZONA
 
-Primeira versão jogável de um battle royale FPS single-player para navegador desktop. Zezé enfrenta 24 operadores em um vale procedural de 700 × 700 m. TypeScript, Three.js e Vite; sem servidor de jogo, contas, multiplayer ou assets pagos.
+Versão 0.3 de um battle royale FPS single-player para navegador desktop, com cenário texturizado, personagens articulados e resolução adaptativa. Zezé enfrenta 24 operadores em um vale procedural de 700 × 700 m. TypeScript, Three.js e Vite; sem servidor de jogo, contas, multiplayer ou assets pagos.
 
 ## Baixar e jogar, sem instalação
 
-**[Baixar o jogo pronto (.zip)](https://github.com/wezzleymaxwel-maker/Wezzley-Maxwell/raw/refs/heads/main/downloads/Ultima-Zona-v0.2.0.zip)**
+**[Baixar o jogo pronto (.zip)](https://github.com/wezzleymaxwel-maker/Wezzley-Maxwell/raw/refs/heads/main/downloads/Ultima-Zona-v0.3.0.zip)**
 
 O pacote pronto também está na pasta [`downloads/`](downloads/). Para jogar, não é necessário compilar o projeto.
 
@@ -37,6 +37,20 @@ npm run package
 
 O `dist/index.html` comum é destinado a um servidor HTTP (`npm run preview`); para abrir por duplo clique, use **`release/JOGAR.html`**.
 
+## Visual e desempenho na versão 0.3
+
+- Armas reconstruídas com canos, miras, gatilhos, carregadores e superfícies de metal/madeira; mãos com dedos, luvas e mangas.
+- Operadores com rosto, capacete, colete, mochila, joelhos e movimento articulado. À distância, um modelo de 652–884 triângulos substitui a versão detalhada de cerca de 9 mil triângulos.
+- Paredes com relevo e desgaste, telhados inclinados, janelas com molduras/aberturas, árvores com galhos/folhas, pedras irregulares, veículos e objetos mais reconhecíveis. Os materiais usam mapas originais de cor, relevo e rugosidade.
+- Céu gradual, nuvens, horizonte, reflexos ambientais e gás com camadas de névoa. Sombras são estabilizadas em incrementos do mapa para reduzir cintilação.
+- Interpolação da câmera/personagens entre passos físicos, movimentos do mouse aplicados a cada quadro e resolução que se adapta à carga sustentada. Qualidade Baixo reduz vegetação decorativa, distância e sombras.
+- Agrupamento espacial do cenário, menos geometria à distância, minimapa com fundo em cache, atualizações de HUD somente quando mudam e limite de recálculo de rotas por quadro.
+- As consultas físicas usam um índice espacial; a precisão dos tiros e a visibilidade continuam respeitando as mesmas superfícies e regras.
+
+Benchmark de CPU reproduzível: `npx tsx tests/benchmark-queries.ts`. Neste ambiente Linux, 1.000 consultas sobre 500 raios levaram mediana de **2.731,01 ms** no percurso direto e **12,64 ms** com o índice, em três rodadas. Todos os impactos e as 140 linhas de visão bloqueadas coincidiram. Essa medida isola consultas de colisão/visão; **não é um ganho de FPS da aplicação inteira nem uma medição em GPU integrada**. Execute o script no seu computador para comparar.
+
+Todos os modelos e mapas de superfície são gerados localmente pelo código. A direção visual usa materiais e formas mais detalhados, mas a entrega ainda não tem captura facial, fotogrametria ou animações de um estúdio especializado.
+
 ## Controles
 
 | Entrada                   | Ação                                |
@@ -64,19 +78,24 @@ Há cinco armas próximas ao ponto inicial para experimentar; outros pontos de s
 
 ## Estrutura
 
-| Módulo              | Responsabilidade                                                 |
-| ------------------- | ---------------------------------------------------------------- |
-| `src/main.ts`       | Integração, partida, entrada, atores, decisões de IA e interface |
-| `src/world.ts`      | Mapa, construções, terreno e colisão                             |
-| `src/navigation.ts` | Rotas A* e grade de obstáculos                                   |
-| `src/combat.ts`     | Visibilidade e primeiro impacto balístico                        |
-| `src/rules.ts`      | Armas, gás, dano e transferência de munição                      |
-| `src/rendering.ts`  | Agrupamento do cenário estático                                  |
-| `src/settings.ts`   | Validação e armazenamento opcional de preferências               |
-| `src/lifecycle.ts`  | Temporizadores e passo fixo da simulação                         |
-| `src/audio.ts`      | Síntese sonora                                                   |
-| `src/*.test.ts`     | Testes unitários de regras, combate e colisões                   |
-| `tests/browser.mjs` | Fluxo real em Chromium e simulação de partida                    |
+| Módulo               | Responsabilidade                                                 |
+| -------------------- | ---------------------------------------------------------------- |
+| `src/main.ts`        | Integração, partida, entrada, atores, decisões de IA e interface |
+| `src/world.ts`       | Mapa, construções, terreno e colisão                             |
+| `src/navigation.ts`  | Rotas A* e grade de obstáculos                                   |
+| `src/combat.ts`      | Visibilidade e primeiro impacto balístico                        |
+| `src/rules.ts`       | Armas, gás, dano e transferência de munição                      |
+| `src/models.ts`      | Armas, mãos e operadores com articulação e LOD                   |
+| `src/materials.ts`   | Mapas originais de cor, relevo e rugosidade                      |
+| `src/atmosphere.ts`  | Céu, horizonte e luz ambiental                                   |
+| `src/performance.ts` | Controle adaptativo da resolução                                 |
+| `src/spatial.ts`     | Índice espacial para as consultas físicas                        |
+| `src/rendering.ts`   | Agrupamento do cenário estático                                  |
+| `src/settings.ts`    | Validação e armazenamento opcional de preferências               |
+| `src/lifecycle.ts`   | Temporizadores e passo fixo da simulação                         |
+| `src/audio.ts`       | Síntese sonora                                                   |
+| `src/*.test.ts`      | Testes unitários de regras, combate e colisões                   |
+| `tests/browser.mjs`  | Fluxo real em Chromium e simulação de partida                    |
 
 Os parâmetros de armas e zona ficam em `rules.ts`. As regiões e pontos de saque são gerados em `world.ts`. Toda geometria e todo áudio são produzidos pelo código deste projeto.
 
@@ -117,12 +136,12 @@ O teste portátil abre o **mesmo HTML embutido** por HTTP local e desativa a red
 
 Esta entrega é uma base jogável integrada, ainda abaixo do acabamento e de toda a variedade descritos no briefing:
 
-- Modelos low-poly e áudio sintetizado simples; não há rigging, texturas artísticas ou animações completas de mãos. A personalização é básica.
-- Construções têm entradas abertas, interiores simples e plataformas; não há portas interativas, janelas detalhadas, vários cômodos completos ou segundos andares internos mobiliados.
+- Modelos e superfícies são procedurais; o áudio é sintetizado. Há articulação de membros e detalhes de mãos, mas não há captura de movimentos, expressões faciais animadas ou animações completas de dedos durante a recarga. A personalização é básica.
+- Construções têm entradas abertas, interiores simples e plataformas; não há portas interativas, vários cômodos completos ou segundos andares internos mobiliados.
 - Cobertura e flanqueamento são heurísticos. A grade de 3 m pode falhar em passagens estreitas, e a recuperação redireciona o bot. Perfis ainda afetam poucas decisões. Não há navmesh nem ajuste de dificuldade por telemetria.
 - Os bots começam armados. O saque usa pontos fixos e tipos aleatórios a cada partida, com drops adicionais; ainda não há tabelas de raridade por região. Mochila é um pacote de suprimentos, não um sistema de capacidade. Não há acessórios ou bandagens separadas.
-- O inventário oferece cinco espaços de armas e descarte, sem peso, arraste ou limite de mochila. A compacta e a pistola têm silhuetas próximas.
-- Não há garantia de 60 FPS, validação em GPU integrada real, LOD de modelos, áudio HRTF ou efeitos atmosféricos avançados. A simulação usa passos fixos com limite de recuperação por quadro; computadores muito lentos podem apresentar câmera lenta.
+- O inventário oferece cinco espaços de armas e descarte, sem peso, arraste ou limite de mochila.
+- Não há garantia de 60 FPS nem validação em GPU integrada real. O LOD e a resolução adaptativa reduzem custos; efeitos atmosféricos são simples e o áudio ainda não é HRTF. A simulação usa passos fixos com limite de recuperação por quadro; computadores muito lentos podem apresentar câmera lenta.
 - Derrota, reinício e a transição de vitória após um duelo final controlado são automatizados. Isso não equivale a uma vitória jogada manualmente durante 13 minutos. As seis fases são cobertas por testes determinísticos.
 - Não há multiplayer, persistência de partidas ou suporte mobile. O pacote portátil é entregue; o desempenho em outro computador depende do navegador e do hardware.
 

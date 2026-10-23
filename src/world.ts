@@ -1,4 +1,11 @@
 import * as THREE from "three";
+import {
+  surfaceMaterial,
+  repeatUV,
+  foliageMaterial,
+  grassMaterial,
+  type Surface,
+} from "./materials";
 
 export interface CollisionBox {
   minX: number;
@@ -27,8 +34,9 @@ export class World {
     { x: -205, z: 120, radius: 38, name: "POSTO AURORA" },
     { x: 190, z: 140, radius: 62, name: "BASE HORIZONTE" },
   ];
-  private materials = new Map<number, THREE.MeshStandardMaterial>();
-  private cube = new THREE.BoxGeometry(1, 1, 1);
+  private boxGeometries = new Map<string, THREE.BoxGeometry>();
+  private grassMesh?: THREE.InstancedMesh;
+  private leafMesh?: THREE.InstancedMesh;
   private ramps: {
     x: number;
     z: number;
@@ -38,8 +46,8 @@ export class World {
     base: number;
   }[] = [];
   constructor(public scene: THREE.Scene) {
-    scene.background = new THREE.Color(0xa8c6cb);
-    scene.fog = new THREE.FogExp2(0xa8c6cb, 0.0022);
+    scene.background = new THREE.Color(0xc2cdce);
+    scene.fog = new THREE.FogExp2(0xc2cdce, 0.0015);
     const terrain = new THREE.PlaneGeometry(700, 700, 120, 120);
     terrain.rotateX(-Math.PI / 2);
     const positions = terrain.attributes.position;
@@ -49,7 +57,7 @@ export class World {
         z = positions.getZ(i),
         y = this.terrainHeight(x, z);
       positions.setY(i, y);
-      const color = new THREE.Color(y > 5 ? 0x8e9872 : 0x74865c);
+      const color = new THREE.Color(y > 5 ? 0x969477 : 0x9a9f75);
       color.multiplyScalar(
         0.91 + 0.12 * Math.sin(x * 0.12) * Math.cos(z * 0.1),
       );
@@ -57,10 +65,12 @@ export class World {
     }
     terrain.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
     terrain.computeVertexNormals();
-    const ground = new THREE.Mesh(
-      terrain,
-      new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }),
-    );
+    const groundMaterial = surfaceMaterial("grass", 0xd5d2b0).clone();
+    groundMaterial.vertexColors = true;
+    const uv = terrain.attributes.uv;
+    for (let i = 0; i < uv.count; i++)
+      uv.setXY(i, uv.getX(i) * 230, uv.getY(i) * 230);
+    const ground = new THREE.Mesh(terrain, groundMaterial);
     ground.receiveShadow = true;
     scene.add(ground);
     this.solids.push(ground);
@@ -88,6 +98,12 @@ export class World {
       const x = 65 + (i % 3) * 18,
         z = -106 + Math.floor(i / 3) * 12;
       this.block(x, 1.6, z, 11, 3.2, 5, [0x476f70, 0x9c674a, 0x7c8554][i % 3]);
+      for (const side of [-1, 1]) {
+        this.trim(x, 3.25, z + side * 2.53, 11, 0.1, 0.12, 0x343c3b, "metal");
+        this.trim(x, 0.12, z + side * 2.53, 11, 0.16, 0.12, 0x343c3b, "metal");
+      }
+      for (const dz of [-1.8, -0.6, 0.6, 1.8])
+        this.trim(x + 5.55, 1.6, z + dz, 0.1, 2.9, 0.07, 0x86877e, "metal");
       this.lootPoints.push(new THREE.Vector3(x + 7, 0.5, z));
     }
     this.gasStation(-205, 120);
@@ -114,8 +130,8 @@ export class World {
       const y = this.terrainHeight(x, z),
         size = 1.4 + (i % 4);
       const rock = new THREE.Mesh(
-        new THREE.DodecahedronGeometry(size, 0),
-        this.material(0x777c73),
+        this.rockGeometry(size, i),
+        this.material(0x9c9b8d, "stone"),
       );
       rock.position.set(x, y + size * 0.6, z);
       rock.scale.set(1.3, 0.8, 1);
@@ -154,16 +170,41 @@ export class World {
       p.y = this.ground(p.x, p.z);
       this.spawnPoints.push(p);
     }
+    this.groundVegetation();
     for (const region of this.regions)
       this.label(region.name, region.x, region.z);
   }
-  private material(color: number) {
-    if (!this.materials.has(color))
-      this.materials.set(
-        color,
-        new THREE.MeshStandardMaterial({ color, roughness: 0.88 }),
-      );
-    return this.materials.get(color)!;
+  setQuality(quality: "baixo" | "medio" | "alto") {
+    if (this.grassMesh)
+      this.grassMesh.count =
+        quality === "baixo"
+          ? 0
+          : Math.min(
+              this.grassMesh.userData.fullCount,
+              quality === "medio" ? 900 : 1900,
+            );
+    if (this.leafMesh) this.leafMesh.castShadow = quality === "alto";
+  }
+  private material(color: number, kind?: Surface) {
+    const palette: Record<number, Surface> = {
+      0x78796a: "asphalt",
+      0x645745: "bark",
+      0x777c73: "stone",
+      0x66695c: "roof",
+      0x4c6264: "roof",
+      0x967c56: "wood",
+      0x71604a: "wood",
+      0x85877b: "concrete",
+      0x9b9788: "concrete",
+      0x6b7770: "metal",
+      0x758a8d: "metal",
+      0x476f70: "metal",
+      0x9c674a: "metal",
+      0x7c8554: "metal",
+      0xb27851: "metal",
+      0x687160: "metal",
+    };
+    return surfaceMaterial(kind ?? palette[color] ?? "plaster", color);
   }
   private block(
     x: number,
@@ -174,10 +215,19 @@ export class World {
     d: number,
     color: number,
     collision = true,
+    kind?: Surface,
   ) {
-    const mesh = new THREE.Mesh(this.cube, this.material(color));
+    const key = [w, h, d].join(",");
+    if (!this.boxGeometries.has(key))
+      this.boxGeometries.set(
+        key,
+        repeatUV(new THREE.BoxGeometry(w, h, d), w, h, d),
+      );
+    const mesh = new THREE.Mesh(
+      this.boxGeometries.get(key)!,
+      this.material(color, kind),
+    );
     mesh.position.set(x, y, z);
-    mesh.scale.set(w, h, d);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     this.scene.add(mesh);
@@ -193,6 +243,36 @@ export class World {
       });
     }
     return mesh;
+  }
+  private trim(
+    x: number,
+    y: number,
+    z: number,
+    w: number,
+    h: number,
+    d: number,
+    color = 0x686b62,
+    kind: Surface = "wood",
+  ) {
+    const m = this.block(x, y, z, w, h, d, color, false, kind);
+    m.castShadow = false;
+    return m;
+  }
+  private rockGeometry(size: number, seed: number) {
+    const geometry = new THREE.SphereGeometry(size, 10, 7);
+    const p = geometry.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      const x = p.getX(i),
+        y = p.getY(i),
+        z = p.getZ(i);
+      const n =
+        0.88 +
+        0.13 * Math.sin(x * 2.7 + seed) +
+        0.09 * Math.cos(z * 3.3 + y * 2.4);
+      p.setXYZ(i, x * n, y * (0.8 + 0.13 * Math.sin(z * 2.5 + seed)), z * n);
+    }
+    geometry.computeVertexNormals();
+    return geometry;
   }
   private terrainHeight(x: number, z: number) {
     let mask = 1;
@@ -302,12 +382,136 @@ export class World {
     this.block(x + w / 2, h / 2, z, 0.5, h, d, color);
     this.block(x, h / 2, z - d / 2, w, h, 0.5, color);
     // Front entrance with a true 3m opening and lintel.
-    this.block(x - 5, h / 2, z + d / 2, 7, h, 0.5, color);
-    this.block(x + 5, h / 2, z + d / 2, 7, h, 0.5, color);
+    for (const offset of [-5, 5]) {
+      const wx = x + offset,
+        fz = z + d / 2;
+      this.block(wx - 2.35, h / 2, fz, 2.3, h, 0.5, color);
+      this.block(wx + 2.35, h / 2, fz, 2.3, h, 0.5, color);
+      this.block(wx, 0.55, fz, 2.4, 1.1, 0.5, color);
+      this.block(wx, (h + 2.75) / 2, fz, 2.4, h - 2.75, 0.5, color);
+      this.trim(wx, 1.08, fz + 0.15, 2.65, 0.16, 0.8, 0xb0aa91, "concrete");
+      this.trim(wx, 2.77, fz + 0.05, 2.6, 0.13, 0.62, 0x625f50, "wood");
+      for (const sign of [-1, 1])
+        this.trim(
+          wx + sign * 1.23,
+          1.94,
+          fz + 0.1,
+          0.13,
+          1.7,
+          0.6,
+          0x625f50,
+          "wood",
+        );
+      // Open timber shutters: the central aperture remains transparent to real sight and bullets.
+      const shutter = this.trim(
+        wx - 1.6,
+        1.92,
+        fz + 0.3,
+        0.6,
+        1.6,
+        0.09,
+        0x596154,
+        "wood",
+      );
+      shutter.rotation.y = -0.3;
+      if (upper) {
+        this.trim(wx, 5.8, fz + 0.28, 2.2, 1.65, 0.08, 0x293731, "metal");
+        for (const sign of [-1, 1])
+          this.trim(
+            wx + sign * 1.15,
+            5.8,
+            fz + 0.35,
+            0.13,
+            1.8,
+            0.16,
+            0xb8b09a,
+            "wood",
+          );
+        this.trim(wx, 4.96, fz + 0.35, 2.5, 0.16, 0.35, 0xb8b09a, "concrete");
+      }
+    }
     this.block(x, h / 2 + 1.5, z + d / 2, 3, h - 3, 0.5, color);
-    this.block(x, h + 0.22, z, w + 1, 0.45, d + 1, 0x66695c);
+    this.block(x, h + 0.16, z, w + 0.8, 0.32, d + 0.8, 0x66695c);
+    // Shallow pitched sheet roof, ridge, gutters, and courses break the box silhouette.
+    for (const side of [-1, 1]) {
+      const roof = this.block(
+        x + side * 4.7,
+        h + 1.27,
+        z,
+        10,
+        0.16,
+        d + 1.2,
+        0x797970,
+        false,
+        "roof",
+      );
+      roof.rotation.z = -side * 0.23;
+      this.solids.push(roof);
+      this.trim(
+        x + side * 9.5,
+        h + 0.2,
+        z,
+        0.14,
+        0.15,
+        d + 1.2,
+        0x3e4744,
+        "metal",
+      );
+      this.trim(
+        x + side * 8.81,
+        h * 0.5,
+        z + d / 2 + 0.3,
+        0.18,
+        h,
+        0.23,
+        0xa8a28e,
+        "concrete",
+      );
+    }
+    const triangle = new THREE.Shape();
+    triangle.moveTo(-9.45, 0);
+    triangle.lineTo(9.45, 0);
+    triangle.lineTo(0, 2.2);
+    triangle.closePath();
+    for (const side of [-1, 1]) {
+      const gable = new THREE.Mesh(
+        new THREE.ExtrudeGeometry(triangle, {
+          depth: 0.13,
+          bevelEnabled: false,
+        }),
+        this.material(color),
+      );
+      gable.position.set(x, h + 0.25, z + side * 9.4);
+      gable.castShadow = true;
+      this.scene.add(gable);
+      this.solids.push(gable);
+    }
+    this.trim(x, h + 2.42, z, 0.25, 0.18, d + 1.3, 0x515b57, "metal");
+    for (const dz of [-9.29, 9.29])
+      this.trim(x, 0.3, z + dz, 17.5, 0.55, 0.12, 0x817f70, "concrete");
+    this.trim(x + 6.7, h + 1.6, z - 4, 0.9, 2.9, 1.1, 0x9a8c77, "brick");
+    this.trim(x - 1.58, 1.5, z + 9.25, 0.16, 3, 0.25, 0x625f50, "wood");
+    this.trim(x + 1.58, 1.5, z + 9.25, 0.16, 3, 0.25, 0x625f50, "wood");
+    this.trim(x, 3.04, z + 9.25, 3.4, 0.18, 0.25, 0x625f50, "wood");
     // Furniture as cover with reachable items at tabletop height.
-    this.block(x - 4, 0.55, z - 4, 3, 1.1, 1.8, 0x71604a);
+    const table = this.block(x - 4, 0.55, z - 4, 3, 1.1, 1.8, 0x71604a);
+    table.visible = false;
+    this.solids.splice(this.solids.indexOf(table), 1);
+    this.solids.push(
+      this.trim(x - 4, 1.02, z - 4, 3.1, 0.16, 1.9, 0x7c654d, "wood"),
+    );
+    for (const dx of [-1.35, 1.35])
+      for (const dz of [-0.72, 0.72])
+        this.trim(
+          x - 4 + dx,
+          0.48,
+          z - 4 + dz,
+          0.12,
+          0.96,
+          0.12,
+          0x59554b,
+          "wood",
+        );
     this.block(x + 5, 0.65, z - 6, 3, 1.3, 2, 0x6b7770);
     this.lootPoints.push(
       new THREE.Vector3(x - 4, 1.3, z - 4),
@@ -360,6 +564,22 @@ export class World {
     this.block(x - 10, 4, z + 15, 6, 8, 0.6, 0x758a8d);
     this.block(x + 10, 4, z + 15, 6, 8, 0.6, 0x758a8d);
     this.block(x, 8.2, z, 27, 0.4, 31, 0x4c6264);
+    for (const side of [-1, 1])
+      for (let zz = -14; zz <= 14; zz += 3.5)
+        this.trim(
+          x + side * 13.37,
+          4,
+          z + zz,
+          0.12,
+          8,
+          0.14,
+          0x4e5c59,
+          "metal",
+        );
+    this.trim(x, 7.85, z + 15.4, 15, 0.3, 0.3, 0x4d5450, "metal");
+    for (const dx of [-7.3, 7.3])
+      this.trim(x + dx, 3.8, z + 15.4, 0.2, 7.6, 0.3, 0x4d5450, "metal");
+    this.trim(x, 7.1, z + 15.38, 8, 0.75, 0.04, 0x363f3c, "metal");
     for (let i = 0; i < 5; i++) {
       this.block(x - 8 + i * 4, 1.3, z - 8, 2.8, 2.6, 3, 0x967c56);
       this.lootPoints.push(new THREE.Vector3(x - 8 + i * 4, 2.8, z - 8));
@@ -375,8 +595,22 @@ export class World {
       this.block(x + dx, 1, z + 15, 1.6, 2, 1, 0xb8b9a6);
       this.block(x + dx, 1.4, z + 15.55, 0.9, 0.55, 0.1, 0x344747, false);
     }
-    this.block(x + 20, 0.8, z + 15, 4, 1.6, 2, 0x59797b);
-    this.block(x + 20, 1.8, z + 15, 2, 0.7, 1.8, 0x344747);
+    this.car(x + 20, z + 15);
+    for (const dx of [-6, 6]) {
+      this.trim(x + dx, 1.48, z + 15.57, 0.65, 0.3, 0.035, 0x182322, "metal");
+      this.trim(x + dx, 0.7, z + 15.55, 1.2, 0.14, 0.05, 0x8b4f36, "metal");
+      const hose = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(x + dx + 0.72, 1.7, z + 15),
+        new THREE.Vector3(x + dx + 1, 1.3, z + 15.1),
+        new THREE.Vector3(x + dx + 1.1, 0.4, z + 15.15),
+        new THREE.Vector3(x + dx + 0.75, 0.25, z + 15.2),
+      ]);
+      const hoseMesh = new THREE.Mesh(
+        new THREE.TubeGeometry(hose, 9, 0.035, 4, false),
+        this.material(0x252b29, "metal"),
+      );
+      this.scene.add(hoseMesh);
+    }
   }
   private tower(x: number, z: number) {
     for (const dx of [-2, 2])
@@ -384,6 +618,21 @@ export class World {
         this.block(x + dx, 3, z + dz, 0.45, 6, 0.45, 0x687160);
     this.block(x, 6, z, 5, 0.4, 5, 0x687160);
     this.block(x, 8.6, z, 6, 0.3, 6, 0x687160);
+    for (const side of [-1, 1]) {
+      this.trim(x + side * 2.35, 6.9, z, 0.1, 0.1, 4.8, 0x92958b, "metal");
+      this.trim(x, 6.9, z + side * 2.35, 4.8, 0.1, 0.1, 0x92958b, "metal");
+      for (const dz of [-2.3, 0, 2.3])
+        this.trim(
+          x + side * 2.35,
+          6.5,
+          z + dz,
+          0.07,
+          1,
+          0.07,
+          0x92958b,
+          "metal",
+        );
+    }
   }
   private road(x1: number, z1: number, x2: number, z2: number) {
     const length = Math.hypot(x2 - x1, z2 - z1),
@@ -403,21 +652,56 @@ export class World {
         false,
       );
       mesh.rotation.y = Math.atan2(x2 - x1, z2 - z1);
+      const dirX = (x2 - x1) / length,
+        dirZ = (z2 - z1) / length;
+      if (i % 3 !== 2) {
+        const marking = this.trim(
+          x,
+          this.terrainHeight(x, z) + 0.043,
+          z,
+          0.13,
+          0.01,
+          2.8,
+          0xbcb99d,
+          "concrete",
+        );
+        marking.rotation.y = mesh.rotation.y;
+      }
+      for (const side of [-1, 1]) {
+        const mx = x + dirZ * side * 3.12,
+          mz = z - dirX * side * 3.12;
+        const marking = this.trim(
+          mx,
+          this.terrainHeight(mx, mz) + 0.047,
+          mz,
+          0.1,
+          0.01,
+          length / count + 0.04,
+          0xc3c3ac,
+          "concrete",
+        );
+        marking.rotation.y = mesh.rotation.y;
+      }
     }
   }
   private forest() {
-    const count = 230;
-    const trunk = new THREE.InstancedMesh(
-      new THREE.CylinderGeometry(0.38, 0.6, 5, 6),
-      this.material(0x645745),
-      count,
-    );
-    const leaves = new THREE.InstancedMesh(
-      new THREE.ConeGeometry(3.2, 8, 6),
-      this.material(0x405f4c),
-      count,
-    );
-    const matrix = new THREE.Matrix4();
+    const count = 230,
+      trunk = new THREE.InstancedMesh(
+        new THREE.CylinderGeometry(0.3, 0.55, 5.7, 9, 3),
+        this.material(0x8a7b66, "bark"),
+        count,
+      ),
+      branches = new THREE.InstancedMesh(
+        new THREE.CylinderGeometry(0.08, 0.19, 3.5, 6),
+        this.material(0x8a7b66, "bark"),
+        count * 3,
+      ),
+      leaves = new THREE.InstancedMesh(
+        new THREE.PlaneGeometry(4.5, 4.5),
+        foliageMaterial(),
+        count * 18,
+      );
+    const dummy = new THREE.Object3D();
     let written = 0;
     for (let i = 0; written < count && i < 1800; i++) {
       const x = Math.sin(i * 127.1) * 321,
@@ -426,26 +710,184 @@ export class World {
         this.regions.some((r) => Math.hypot(x - r.x, z - r.z) < r.radius + 12)
       )
         continue;
-      const y = this.terrainHeight(x, z);
-      matrix.makeTranslation(x, y + 2.5, z);
-      trunk.setMatrixAt(written, matrix);
-      matrix.makeTranslation(x, y + 7, z);
-      leaves.setMatrixAt(written, matrix);
+      const y = this.terrainHeight(x, z),
+        height = 0.85 + (i % 7) * 0.065;
+      dummy.position.set(x, y + 2.85 * height, z);
+      dummy.rotation.set(0.025 * Math.sin(i), 0, 0.025 * Math.cos(i));
+      dummy.scale.set(0.8 + (i % 3) * 0.12, height, 0.8 + (i % 3) * 0.12);
+      dummy.updateMatrix();
+      trunk.setMatrixAt(written, dummy.matrix);
+      for (let b = 0; b < 3; b++) {
+        const a = (b * Math.PI * 2) / 3 + i;
+        dummy.position.set(
+          x + Math.sin(a) * 1.1,
+          y + 5.1 * height,
+          z + Math.cos(a) * 1.1,
+        );
+        dummy.rotation.set(Math.cos(a) * 0.8, 0, -Math.sin(a) * 0.8);
+        dummy.scale.setScalar(height);
+        dummy.updateMatrix();
+        branches.setMatrixAt(written * 3 + b, dummy.matrix);
+      }
+      for (let card = 0; card < 18; card++) {
+        const a = card * 2.39996 + i,
+          r = 1.4 + Math.sin(card * 4.8) * 0.65;
+        dummy.position.set(
+          x + Math.sin(a) * r * height,
+          y + (5.4 + (card % 5) * 0.5) * height,
+          z + Math.cos(a) * r * height,
+        );
+        dummy.rotation.set(Math.sin(a) * 1.05, a, Math.cos(a) * 0.5);
+        dummy.scale.setScalar(height * (0.78 + (card % 4) * 0.14));
+        dummy.updateMatrix();
+        leaves.setMatrixAt(written * 18 + card, dummy.matrix);
+      }
       this.boxes.push({
         minX: x - 0.5,
         maxX: x + 0.5,
         minZ: z - 0.5,
         maxZ: z + 0.5,
-        height: y + 6,
+        height: y + 6 * height,
         minY: y,
       });
       written++;
     }
-    trunk.count = leaves.count = written;
+    trunk.count = written;
+    branches.count = written * 3;
+    leaves.count = written * 18;
     trunk.castShadow = true;
-    leaves.castShadow = true;
-    this.scene.add(trunk, leaves);
-    this.solids.push(trunk, leaves);
+    branches.castShadow = true;
+    leaves.castShadow = false;
+    leaves.receiveShadow = true;
+    this.leafMesh = leaves;
+    this.scene.add(trunk, branches, leaves);
+    this.solids.push(trunk);
+  }
+  private groundVegetation() {
+    // Decorative tufts use one instanced draw; they never become invisible bulletproof squares.
+    const geometry = new THREE.PlaneGeometry(0.7, 0.55);
+    const grass = new THREE.InstancedMesh(geometry, grassMaterial(), 1900);
+    const dummy = new THREE.Object3D();
+    let written = 0;
+    for (let i = 0; i < 4200 && written < 1900; i++) {
+      const x = Math.sin(i * 91.7) * 315,
+        z = Math.cos(i * 37.3) * 315;
+      if (this.regions.some((r) => Math.hypot(x - r.x, z - r.z) < r.radius + 4))
+        continue;
+      const y = this.terrainHeight(x, z);
+      dummy.position.set(x, y + 0.15, z);
+      dummy.rotation.set(0, i * 2.39, 0);
+      dummy.scale.set(0.7 + (i % 3) * 0.3, 0.65 + (i % 5) * 0.11, 1);
+      dummy.updateMatrix();
+      grass.setMatrixAt(written++, dummy.matrix);
+    }
+    grass.count = written;
+    grass.userData.fullCount = written;
+    this.grassMesh = grass;
+    grass.receiveShadow = true;
+    this.scene.add(grass);
+  }
+  private car(x: number, z: number) {
+    // Shaped body, cabin, glass, rubber wheels, grille and lights: a recognizable abandoned sedan.
+    const shape = new THREE.Shape();
+    shape.moveTo(-2.25, 0.45);
+    shape.lineTo(-2.12, 1.1);
+    shape.lineTo(-1.25, 1.2);
+    shape.lineTo(-0.75, 1.86);
+    shape.lineTo(0.85, 1.86);
+    shape.lineTo(1.38, 1.18);
+    shape.lineTo(2.13, 1.1);
+    shape.lineTo(2.27, 0.48);
+    shape.closePath();
+    const geometry = new THREE.ExtrudeGeometry(shape, {
+      depth: 1.9,
+      bevelEnabled: true,
+      bevelSegments: 2,
+      steps: 1,
+      bevelSize: 0.07,
+      bevelThickness: 0.05,
+    });
+    geometry.translate(x, 0, z - 0.95);
+    const body = new THREE.Mesh(geometry, this.material(0x7c8986, "metal"));
+    body.castShadow = true;
+    body.receiveShadow = true;
+    this.scene.add(body);
+    this.solids.push(body);
+    this.boxes.push({
+      minX: x - 2.3,
+      maxX: x + 2.3,
+      minZ: z - 1,
+      maxZ: z + 1,
+      height: 1.9,
+      minY: 0,
+    });
+    const glass = this.material(0x34423f, "metal");
+    for (const side of [-1, 1]) {
+      const window = this.trim(
+        x + 0.02,
+        1.48,
+        z + side * 1.02,
+        1.55,
+        0.57,
+        0.025,
+        0x34423f,
+        "metal",
+      );
+      window.material = glass;
+      this.trim(x, 1.48, z + side * 1.04, 0.08, 0.58, 0.03, 0x80857c, "metal");
+      this.trim(
+        x + 0.2,
+        1.08,
+        z + side * 1.07,
+        0.25,
+        0.04,
+        0.04,
+        0xc2c3b3,
+        "metal",
+      );
+      for (const dx of [-1.4, 1.4]) {
+        const tyre = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.43, 0.43, 0.26, 14),
+          this.material(0x2c302d, "concrete"),
+        );
+        tyre.rotation.x = Math.PI / 2;
+        tyre.position.set(x + dx, 0.43, z + side * 1.01);
+        tyre.castShadow = true;
+        this.scene.add(tyre);
+        const hub = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.23, 0.23, 0.28, 10),
+          this.material(0x9e9d8b, "metal"),
+        );
+        hub.rotation.x = Math.PI / 2;
+        hub.position.copy(tyre.position);
+        this.scene.add(hub);
+      }
+    }
+    for (const end of [-1, 1]) {
+      this.trim(x + end * 2.28, 0.65, z, 0.1, 0.16, 1.85, 0x6c7470, "metal");
+      for (const dz of [-0.64, 0.64])
+        this.trim(
+          x + end * 2.29,
+          0.98,
+          z + dz,
+          0.08,
+          0.18,
+          0.38,
+          end > 0 ? 0xd0bd87 : 0x874c38,
+          "metal",
+        );
+    }
+    for (let grille = 0; grille < 5; grille++)
+      this.trim(
+        x + 2.3,
+        0.87,
+        z - 0.4 + grille * 0.2,
+        0.05,
+        0.22,
+        0.05,
+        0x222b28,
+        "metal",
+      );
   }
   private label(text: string, x: number, z: number) {
     if (typeof document === "undefined") return;

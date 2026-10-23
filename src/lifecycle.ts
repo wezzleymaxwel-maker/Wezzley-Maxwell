@@ -5,6 +5,9 @@ export function tickTimer(remaining: number, dt: number) {
 export class FixedStep {
   private accumulated = 0;
   readonly step = 1 / 60;
+  get alpha() {
+    return Math.max(0, Math.min(1, this.accumulated / this.step));
+  }
   reset() {
     this.accumulated = 0;
   }

@@ -23,6 +23,13 @@ try {
   const page = await context.newPage(),
     errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
+  page.on("console", (message) => {
+    if (
+      message.type() === "error" &&
+      /WebGL|Shader Error|GL_INVALID|VALIDATE_STATUS/i.test(message.text())
+    )
+      errors.push(message.text());
+  });
   await page.goto("http://127.0.0.1:5173/?test");
   await page.waitForFunction(() => window.ultimaZona);
   const state = () => page.evaluate(() => window.ultimaZona.status);
