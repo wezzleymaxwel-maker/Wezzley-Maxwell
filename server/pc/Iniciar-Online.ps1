@@ -33,11 +33,13 @@ try {
         Get-CaatingaDownload $asset.url $archive $asset.sha256
         Add-Type -AssemblyName System.IO.Compression.FileSystem
         $zip = [IO.Compression.ZipFile]::OpenRead($archive)
+        $nodeTemporary = $node + '.download'
         try {
             $entry = $zip.GetEntry($asset.entry)
             if ($null -eq $entry) { throw 'O pacote oficial do Node não contém o executável esperado.' }
-            [IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $node, $true)
-        } finally { $zip.Dispose() }
+            [IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $nodeTemporary, $true)
+            Move-Item -LiteralPath $nodeTemporary -Destination $node -Force
+        } finally { $zip.Dispose(); if (Test-Path -LiteralPath $nodeTemporary) { Remove-Item -LiteralPath $nodeTemporary -Force } }
         Remove-Item -LiteralPath $archive -Force
     }
     $cloudflared = Join-Path $bin ('cloudflared-' + $manifest.cloudflared.version + '.exe')
