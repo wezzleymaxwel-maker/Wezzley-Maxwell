@@ -48,7 +48,8 @@
     "test:sertao:online": "tsx tests/sertao-online.ts",
     "package:pc-host": "node scripts/package-pc-host.mjs",
     "test:pc-host": "npm run package:pc-host && node --test tests/pc-host.mjs",
-    "test:pc-host:browser": "node tests/pc-host-browser.mjs"
+    "test:pc-host:browser": "node tests/pc-host-browser.mjs",
+    "test:expanded": "tsx tests/expanded-game.ts"
   },
   "dependencies": {
     "three": "^0.180.0"

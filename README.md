@@ -1,6 +1,6 @@
 # CAATINGA — servidor online
 
-Servidor autoritativo em Node.js: salas privadas por código, dois ou três participantes, um bot quando há duas pessoas, turnos validados no servidor, dados aleatórios criptográficos, mãos privadas, propostas de troca com aceite, prevenção de jogadas duplicadas e reconexão à mesma vaga.
+Servidor autoritativo em Node.js: salas privadas por código, de dois a seis participantes, bots nas vagas vazias, turnos validados no servidor, dados aleatórios criptográficos, mãos privadas, propostas de troca com aceite, prevenção de jogadas duplicadas e reconexão à mesma vaga.
 
 ## Hospedar no seu computador (Windows)
 
@@ -60,3 +60,7 @@ npm run online:build
 ## Protocolo
 
 `GET /health` informa disponibilidade. `POST /api` aceita create, join, resume, poll, start, action e leave. Cada sessão recebe um token aleatório próprio; o token não aparece nos convites nem nas visões dos outros jogadores. Ações enviam comando, versão esperada e identificador único, nunca o estado completo. Apenas o servidor calcula resultados. O baralho usa embaralhamento criptográfico independente da semente pública do tabuleiro.
+
+## Configuração da mesa
+
+A criação da sala aceita `options: {players: 2..6, mapSize: "classic" | "double"}`. O mapa duplo tem 38 terrenos e 38 cartas de cada recurso no banco. Partidas existentes continuam com suas opções originais. Atualize o iniciador de Windows para hospedar as mesas ampliadas.
