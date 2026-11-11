@@ -2,6 +2,7 @@ services:
   - type: web
     name: caatinga-online
     runtime: node
+    branch: online-server
     plan: free
     buildCommand: npm ci --include=dev && npm run online:build
     startCommand: npm run online:server
