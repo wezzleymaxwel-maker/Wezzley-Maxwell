@@ -1,0 +1,22 @@
+CAATINGA - SERVIDOR NO SEU COMPUTADOR
+
+1. Extraia o ZIP inteiro para uma pasta.
+2. Abra INICIAR-ONLINE.cmd com dois cliques.
+3. Aguarde: na primeira vez ele baixa os componentes oficiais necessários.
+4. Quando o jogo abrir, digite seu nome e clique em Criar sala.
+5. Use Copiar convite e envie o link aos seus amigos. Eles entram de suas casas pelo navegador.
+
+Mantenha o computador ligado, conectado e a janela do servidor aberta.
+Para encerrar, volte à janela e pressione ENTER. Ao iniciar novamente, crie/copiem um novo convite: o endereço da conexão muda.
+
+O iniciador usa um túnel HTTPS temporário da Cloudflare. Funciona também em conexões com CGNAT. Não exige conta no Render, instalação de Node no sistema ou abertura de portas no roteador.
+
+Compatibilidade: Windows 10/11 de 64 bits. Os amigos podem jogar em outros sistemas, pelo navegador.
+Os arquivos de apoio e as partidas ficam em %LOCALAPPDATA%\CAATINGA\Servidor. Os downloads são verificados por SHA-256.
+
+Os túneis gratuitos são temporários e dependem da disponibilidade da Cloudflare e da sua conexão.
+Se ocorrer um erro, a janela mostra o motivo e a pasta dos registros. Não envie a pasta partidas: ela contém as sessões privadas dos jogadores.
+
+Fontes oficiais dos componentes:
+Node.js: https://nodejs.org/ (licença MIT)
+Cloudflared: https://github.com/cloudflare/cloudflared (licença Apache-2.0)

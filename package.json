@@ -27,7 +27,7 @@
     "test:sertao:clay": "tsx tests/sertao-clay.ts",
     "test:sertao:firewood": "tsx tests/sertao-firewood.ts",
     "test:sertao:menu": "tsx tests/sertao-menu.ts",
-    "package:web": "npm run package:sertao && node scripts/package-web.mjs",
+    "package:web": "npm run package:sertao && node scripts/package-web.mjs && npm run package:pc-host",
     "publish:web": "npm run package:web && node scripts/publish-web.mjs",
     "test:sertao:music": "tsx tests/sertao-menu-music.ts",
     "test:sertao:construction": "tsx tests/sertao-construction.ts",
@@ -45,7 +45,10 @@
     "online:server": "tsx server/index.ts",
     "test:online": "tsx --test server/*.test.ts",
     "online:build": "tsc --noEmit -p tsconfig.online.json",
-    "test:sertao:online": "tsx tests/sertao-online.ts"
+    "test:sertao:online": "tsx tests/sertao-online.ts",
+    "package:pc-host": "node scripts/package-pc-host.mjs",
+    "test:pc-host": "npm run package:pc-host && node --test tests/pc-host.mjs",
+    "test:pc-host:browser": "node tests/pc-host-browser.mjs"
   },
   "dependencies": {
     "three": "^0.180.0"

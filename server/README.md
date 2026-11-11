@@ -2,6 +2,20 @@
 
 Servidor autoritativo em Node.js: salas privadas por código, dois ou três participantes, um bot quando há duas pessoas, turnos validados no servidor, dados aleatórios criptográficos, mãos privadas, propostas de troca com aceite, prevenção de jogadas duplicadas e reconexão à mesma vaga.
 
+## Hospedar no seu computador (Windows)
+
+1. Baixe https://wezzleymaxwel-maker.github.io/Wezzley-Maxwell/CAATINGA-Servidor-Windows.zip e extraia a pasta inteira.
+2. Abra **INICIAR-ONLINE.cmd**. O primeiro uso baixa os componentes oficiais e verifica seus hashes.
+3. O iniciador sobe o servidor em uma porta local livre, abre um túnel HTTPS temporário e verifica a conexão antes de abrir o jogo.
+4. No jogo, digite seu nome, crie a sala e use **Copiar convite**. Seus amigos entram pelo link em suas próprias casas.
+5. Mantenha o computador e a janela ligados durante a partida. Pressione ENTER para encerrar.
+
+A conexão funciona também com CGNAT e usa o Cloudflare Quick Tunnel. O endereço muda quando o iniciador é reiniciado: envie um novo convite em uma nova sessão. Os arquivos de apoio e as partidas ficam em `%LOCALAPPDATA%\CAATINGA\Servidor`.
+
+O jogo escuta somente em 127.0.0.1 neste modo. O iniciador utiliza um token privado e temporário para pedir o salvamento antes de encerrar o servidor. A porta escolhida, os componentes portáteis e o túnel são gerenciados pelo iniciador.
+
+Para gerar o pacote a partir do código, use `npm run package:pc-host`. `npm run test:pc-host` valida o ZIP, a execução sem dependências instaladas e o encerramento com salvamento.
+
 ## Hospedar no Render
 
 1. Entre em https://render.com com sua conta do GitHub.
