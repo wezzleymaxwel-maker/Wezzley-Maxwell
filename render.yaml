@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: caatinga-online
+    runtime: node
+    plan: free
+    buildCommand: npm ci --include=dev && npm run online:build
+    startCommand: npm run online:server
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.16.0
+      - key: CAATINGA_ORIGINS
+        value: https://wezzleymaxwel-maker.github.io

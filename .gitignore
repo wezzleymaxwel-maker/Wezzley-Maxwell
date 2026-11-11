@@ -1,8 +1,3 @@
 node_modules/
-dist/
+.online-data/
 *.log
-
-.npm-cache/
-
-release/
-test-results/

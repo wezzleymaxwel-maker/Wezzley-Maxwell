@@ -1,2 +1,0 @@
-bd0d01a6d04bc5d5d17550173db2f287d81bc7bff1a099c8807c4da54af4633c  Ultima-Zona-v0.2.0.zip
-fd69410c438a8b6c1e2b4167d56b80d72f738dbdeff8f2b20a7888a475ea19f0  Ultima-Zona-v0.3.0.zip
