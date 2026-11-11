@@ -42,7 +42,7 @@ export class Room{
  case 'finish':finishFreeRoads(next,p);break;
  case 'offer':{if(s.phase!=='build'||a.to===p)throw Error('Você só pode negociar com outro jogador após os dados.');this.validateOffer(next,p,a.to,a.give,a.take);if(!this.members[a.to]){const result=proposePlayerTrade(next,p,a.to,a.give,a.take);if(!result.accepted)next.log.push('O Tropeiro recusou a proposta.');}else{this.offer={id:token(),from:p,to:a.to,give:{...a.give},take:{...a.take},expires:this.now()+90000};}break;}
  }}
- if(!validSave(next))throw Error('Não foi possível validar a jogada.');this.state=next;this.changed(event,kind);if(event==='roll')this.busyUntil=this.now()+6500;if(event==='build')this.busyUntil=this.now()+3500;
+ next.log=next.log.slice(-50);if(!validSave(next))throw Error('Não foi possível validar a jogada.');this.state=next;this.changed(event,kind);if(event==='roll')this.busyUntil=this.now()+6500;if(event==='build')this.busyUntil=this.now()+3500;
  seen.add(requestId);if(seen.size>64)seen.delete(seen.values().next().value!);this.requests.set(secret,seen);
  }
  private validateOffer(s:State,from:number,to:number,give:Wallet,take:Wallet){if(!resources.some(r=>give[r])||!resources.some(r=>take[r])||resources.some(r=>give[r]&&take[r]||give[r]>s.players[from].cards[r]||take[r]>s.players[to].cards[r]))throw Error('A proposta precisa de recursos disponíveis dos dois lados.');}
