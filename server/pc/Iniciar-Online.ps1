@@ -71,7 +71,7 @@ try {
     $nodeError = Join-Path $logs ($stamp + '-servidor-erros.log')
     Write-Host 'Abrindo a partida no seu computador...'
     $nodeProcess = Start-Process -FilePath $node -ArgumentList ('"' + $bundle + '"') -WorkingDirectory $PSScriptRoot -NoNewWindow -PassThru -RedirectStandardOutput $nodeOut -RedirectStandardError $nodeError
-    Wait-CaatingaHealth $localUrl $nodeProcess 20
+    Wait-CaatingaHealth $localUrl $nodeProcess 20 $package.protocol
     $tunnelOut = Join-Path $logs ($stamp + '-conexao.log')
     $tunnelError = Join-Path $logs ($stamp + '-conexao-erros.log')
     $config = Join-Path $base 'conexao.yml'
@@ -91,7 +91,7 @@ try {
         Start-Sleep -Milliseconds 500
     }
     if (-not $publicUrl) { throw ('Não foi possível criar a conexão. Detalhes em: ' + $tunnelError) }
-    Wait-CaatingaHealth $publicUrl $tunnelProcess 90
+    Wait-CaatingaHealth $publicUrl $tunnelProcess 90 $package.protocol
     $gameUrl = (Get-CaatingaGameUrl $manifest.gameUrl $publicUrl) + '&v=' + [Uri]::EscapeDataString([string]$package.build)
     Write-Host 'Para retomar uma partida, mantenha a aba antiga e informe nela este novo endereço do servidor.'
     Set-Content -LiteralPath (Join-Path $base 'abrir-jogo.url') -Value ("[InternetShortcut]`r`nURL=" + $gameUrl) -Encoding Ascii

@@ -27,14 +27,14 @@ function Get-CaatingaDownload([string]$Url, [string]$Path, [string]$Hash) {
         Move-Item -LiteralPath $temporary -Destination $Path -Force
     } finally { if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary -Force } }
 }
-function Wait-CaatingaHealth([string]$Url, $Process, [int]$Seconds = 60) {
+function Wait-CaatingaHealth([string]$Url, $Process, [int]$Seconds = 60, [int]$Protocol = 2) {
     $deadline = [DateTime]::UtcNow.AddSeconds($Seconds)
     while ([DateTime]::UtcNow -lt $deadline) {
         $Process.Refresh()
         if ($Process.HasExited) { throw 'O processo do servidor ou do túnel foi encerrado durante a inicialização.' }
         try {
             $health = Invoke-RestMethod -Uri ($Url + '/health') -Method Get -TimeoutSec 5
-            if ($health.game -eq 'CAATINGA' -and $health.protocol -eq 1) { return }
+            if ($health.game -eq 'CAATINGA' -and $health.protocol -eq $Protocol) { return }
         } catch { }
         Start-Sleep -Milliseconds 700
     }

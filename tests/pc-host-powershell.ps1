@@ -16,6 +16,18 @@ $link=Get-CaatingaGameUrl 'https://wezzleymaxwel-maker.github.io/Wezzley-Maxwell
 Assert ($link -eq 'https://wezzleymaxwel-maker.github.io/Wezzley-Maxwell/?servidor=https%3A%2F%2Fterra-sol-casa.trycloudflare.com') 'Game invitation encoding'
 $port=Get-CaatingaFreePort
 Assert ($port -gt 0 -and $port -lt 65536) 'Free loopback port'
+$process = New-Object PSObject -Property @{ HasExited = $false }
+$process | Add-Member -MemberType ScriptMethod -Name Refresh -Value { }
+$script:healthProtocol = 2
+function Invoke-RestMethod { return @{ game = 'CAATINGA'; protocol = $script:healthProtocol } }
+Wait-CaatingaHealth 'http://127.0.0.1:12345' $process 1 2
+$script:healthProtocol = 1
+$rejected = $false
+try { Wait-CaatingaHealth 'http://127.0.0.1:12345' $process 1 2 } catch { $rejected = $true }
+Assert $rejected 'Old protocol must not be considered ready'
+$script:healthProtocol = 3
+Wait-CaatingaHealth 'http://127.0.0.1:12345' $process 1 3
+Remove-Item Function:Invoke-RestMethod
 $file=Join-Path ([IO.Path]::GetTempPath()) ('caatinga-'+[Guid]::NewGuid()+'.txt')
 try {Set-Content $file 'CAATINGA';$hash=(Get-FileHash $file).Hash;Assert (Test-CaatingaHash $file $hash) 'Valid SHA';Assert (-not (Test-CaatingaHash $file ('0'*64))) 'Corrupt file rejected'}finally{Remove-Item $file -ErrorAction SilentlyContinue}
 & "$root/release/pc-host/Iniciar-Online.ps1" -VerificarArquivos
