@@ -44,7 +44,7 @@ O servidor abre a porta `8787`, ou a porta definida em `PORT`. No jogo em desenv
 - `CAATINGA_ORIGINS`: origens do site autorizadas, separadas por vírgula. O padrão permite o GitHub Pages deste projeto e desenvolvimento local na porta 5174.
 - `CAATINGA_DATA_DIR`: pasta de salvamento das salas. O padrão é `.online-data`. Em hospedagens com disco persistente, a pasta deve apontar para o volume montado.
 
-As salas expiram após 24 horas sem jogadas. O navegador guarda a sessão na aba para reconectar após atualizar a página. Um participante desconectado mantém sua vaga; não é substituído por um bot. O servidor só controla a vaga que já estava vazia ao começar.
+As salas expiram após 24 horas sem jogadas. O navegador guarda a sessão na aba para reconectar após atualizar a página. Um participante desconectado mantém sua vaga. Após 90 segundos sem conexão, o computador joga temporariamente por ele; ao reconectar com a mesma sessão, o participante retoma suas cartas e construções. Depois de reiniciar o servidor há uma nova tolerância de 90 segundos para reconectar.
 
 No plano gratuito do Render, o armazenamento local é temporário. Reiniciar ou republicar o serviço pode apagar as salas. Para preservar partidas entre reinícios, configure um disco persistente em um plano compatível ou um armazenamento externo. Não trate o plano gratuito como salvamento permanente.
 
@@ -59,8 +59,17 @@ npm run online:build
 
 ## Protocolo
 
-`GET /health` informa disponibilidade. `POST /api` aceita create, join, resume, poll, start, action e leave. Cada sessão recebe um token aleatório próprio; o token não aparece nos convites nem nas visões dos outros jogadores. Ações enviam comando, versão esperada e identificador único, nunca o estado completo. Apenas o servidor calcula resultados. O baralho usa embaralhamento criptográfico independente da semente pública do tabuleiro.
+`GET /health` informa disponibilidade, versão e protocolo. As solicitações de jogo devem enviar `protocol: 2`; o cliente verifica a compatibilidade antes de criar ou retomar uma sala. `POST /api` aceita create, join, resume, poll, start, action e leave. Cada sessão recebe um token aleatório próprio; o token não aparece nos convites nem nas visões dos outros jogadores. Ações enviam comando, versão esperada e identificador único, nunca o estado completo. Apenas o servidor calcula resultados. O baralho usa embaralhamento criptográfico independente da semente pública do tabuleiro.
 
 ## Configuração da mesa
 
 A criação da sala aceita `options: {players: 2..6, mapSize: "classic" | "double"}`. O mapa duplo tem 38 terrenos e 38 cartas de cada recurso no banco. Partidas existentes continuam com suas opções originais. Atualize o iniciador de Windows para hospedar as mesas ampliadas.
+
+
+### Atualizações e retomada
+
+A versão instalada aparece em Opções e no iniciador. `release.json` identifica a versão publicada e sua compilação; o jogo e o iniciador avisam quando existem arquivos novos. Servidores com protocolo antigo não aceitam o jogo atual: atualize o ZIP e os navegadores. As partidas permanecem em `%LOCALAPPDATA%\CAATINGA\Servidor`, fora da pasta extraída.
+
+Ao reiniciar o túnel, mantenha a aba antiga aberta. Abra a sala, informe o endereço novo e escolha Reconectar à minha sala. O código e o token permanecem na aba, preservando a vaga. Fechar a aba pode perder essa sessão; os tokens não são incluídos no convite. O computador anfitrião e a janela do servidor precisam continuar ligados durante a partida.
+
+Maior estrada vale dois pontos a partir de cinco trechos contínuos. Empates preservam o dono atual; bifurcações não se somam e construções adversárias interrompem o caminho. O dono é salvo e remapeado nas visões privadas de cada participante.

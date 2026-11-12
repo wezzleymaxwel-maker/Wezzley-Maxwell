@@ -9,6 +9,14 @@ $bundle = Join-Path $PSScriptRoot 'servidor.mjs'
 if (-not (Test-Path -LiteralPath $bundle)) { throw 'Extraia o ZIP completo antes de abrir INICIAR-ONLINE.cmd.' }
 $package = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'pacote.json') -Raw | ConvertFrom-Json
 if (-not (Test-CaatingaHash $bundle $package.serverSha256)) { throw 'O servidor está incompleto. Baixe e extraia o ZIP novamente.' }
+Write-Host ('CAATINGA — Servidor versão ' + $package.gameVersion + ' · ' + $package.build)
+try {
+    $latest = Invoke-RestMethod -Uri 'https://wezzleymaxwel-maker.github.io/Wezzley-Maxwell/release.json' -TimeoutSec 5
+    if ($latest.build -and $package.build -and $latest.build -ne $package.build) {
+        Write-Host 'Existe uma versão mais recente do servidor. Baixe o pacote novo pelo jogo.' -ForegroundColor Yellow
+    }
+} catch { Write-Host 'Não foi possível consultar atualizações; iniciando a versão instalada.' }
+
 if ($VerificarArquivos) { Write-Output 'CAATINGA: arquivos do iniciador encontrados.'; return }
 if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) { throw 'Este iniciador é para Windows 10 ou 11 de 64 bits.' }
 $architecture = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'arm64' } else { 'x64' }
@@ -84,7 +92,8 @@ try {
     }
     if (-not $publicUrl) { throw ('Não foi possível criar a conexão. Detalhes em: ' + $tunnelError) }
     Wait-CaatingaHealth $publicUrl $tunnelProcess 90
-    $gameUrl = Get-CaatingaGameUrl $manifest.gameUrl $publicUrl
+    $gameUrl = (Get-CaatingaGameUrl $manifest.gameUrl $publicUrl) + '&v=' + [Uri]::EscapeDataString([string]$package.build)
+    Write-Host 'Para retomar uma partida, mantenha a aba antiga e informe nela este novo endereço do servidor.'
     Set-Content -LiteralPath (Join-Path $base 'abrir-jogo.url') -Value ("[InternetShortcut]`r`nURL=" + $gameUrl) -Encoding Ascii
     Start-Process $gameUrl
     Write-Host ''

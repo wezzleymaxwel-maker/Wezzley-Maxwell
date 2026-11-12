@@ -7,7 +7,7 @@ CAATINGA - SERVIDOR NO SEU COMPUTADOR
 5. Use Copiar convite e envie o link aos seus amigos. Eles entram de suas casas pelo navegador.
 
 Mantenha o computador ligado, conectado e a janela do servidor aberta.
-Para encerrar, volte à janela e pressione ENTER. Ao iniciar novamente, crie/copiem um novo convite: o endereço da conexão muda.
+Para encerrar, volte à janela e pressione ENTER. Ao iniciar novamente, o endereço da conexão muda. Para continuar a partida, mantenha a aba antiga aberta, abra a sala, informe o novo endereço e escolha Reconectar à minha sala. Para uma partida nova, use o novo convite.
 
 O iniciador usa um túnel HTTPS temporário da Cloudflare. Funciona também em conexões com CGNAT. Não exige conta no Render, instalação de Node no sistema ou abertura de portas no roteador.
 
@@ -20,3 +20,9 @@ Se ocorrer um erro, a janela mostra o motivo e a pasta dos registros. Não envie
 Fontes oficiais dos componentes:
 Node.js: https://nodejs.org/ (licença MIT)
 Cloudflared: https://github.com/cloudflare/cloudflared (licença Apache-2.0)
+
+ATUALIZAÇÕES
+A versão instalada aparece no iniciador e em Opções. Se houver aviso de versão antiga, baixe o ZIP atualizado e atualize as abas do jogo. As partidas ficam fora da pasta extraída. Guarde a aba da sala para manter sua sessão.
+
+RECONEXÃO
+A vaga é preservada. Após 90 segundos de ausência, o computador joga temporariamente; ao voltar com a mesma sessão, você retoma o controle. O computador anfitrião precisa continuar ligado e com o servidor aberto.
