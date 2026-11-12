@@ -198,11 +198,11 @@ export function playDevelopment(s:State,p:number,id:number,choice?:Resource|Reso
 }
 export function finishFreeRoads(s:State,p:number){checkPlayer(s,p);const pending=s.development?.freeRoads;if(s.phase!=='free-roads'||!pending||pending.owner!==p||pending.left===2)throw new Error('Coloque pelo menos uma estrada do Mutirão.');s.phase=pending.returnPhase;s.development!.freeRoads=null;}
 export function endTurn(s:State,p:number){checkPlayer(s,p);if(s.phase!=='build')throw new Error('Conclua a ação indicada antes de terminar o turno.');victory(s,p);if(s.winner!==null)return;s.current=(p+1)%s.players.length;if(s.current===0)s.round++;s.phase='roll';s.dice=null;note(s,`Vez de ${playerNames[s.current]}.`);}
-export function scoreNode(id:number,board=map){return board.nodes[id].tiles.reduce((n,tid)=>{const t=board.tiles[tid];return n+(t.number?6-Math.abs(7-t.number):0);},0)+new Set(board.nodes[id].tiles.map(t=>board.tiles[t].resource).filter(Boolean)).size*1.2;}
+export function scoreNode(id:number,board=map,numbersKnown=true){return board.nodes[id].tiles.reduce((n,tid)=>{const t=board.tiles[tid];return n+(numbersKnown?(t.number?6-Math.abs(7-t.number):0):(t.resource?3:0));},0)+new Set(board.nodes[id].tiles.map(t=>board.tiles[t].resource).filter(Boolean)).size*1.2;}
 export function chooseRoad(s:State,p:number){
  const map=boardFor(s);
  const targets=map.nodes.filter(n=>!s.buildings[n.id]&&n.edges.every(id=>!s.buildings[otherEnd(id,n.id,map)]));
- const distance=(node:number)=>targets.reduce((best,t)=>Math.min(best,Math.hypot(t.x-map.nodes[node].x,t.z-map.nodes[node].z)-scoreNode(t.id,boardFor(s))*.05),99);
+ const distance=(node:number)=>targets.reduce((best,t)=>Math.min(best,Math.hypot(t.x-map.nodes[node].x,t.z-map.nodes[node].z)-scoreNode(t.id,boardFor(s),!s.phase.startsWith('setup-'))*.05),99);
  return legalRoads(s,p).sort((a,b)=>Math.min(distance(map.edges[a].a),distance(map.edges[a].b))-Math.min(distance(map.edges[b].a),distance(map.edges[b].b)))[0];
 }
 function botDevelopment(s:State,p:number){
@@ -214,7 +214,7 @@ function botDevelopment(s:State,p:number){
 }
 export function botStep(s:State,random:()=>number=Math.random){
  const p=s.current;if(s.phase==='finished')return;
- if(s.phase==='setup-house'){const ids=legalHouses(s,p,true).sort((a,b)=>scoreNode(b,boardFor(s))-scoreNode(a,boardFor(s)));if(!ids.length)throw new Error('Sem espaço para a preparação.');build(s,p,'settlement',ids[0]);return;}
+ if(s.phase==='setup-house'){const ids=legalHouses(s,p,true).sort((a,b)=>scoreNode(b,boardFor(s),false)-scoreNode(a,boardFor(s),false));if(!ids.length)throw new Error('Sem espaço para a preparação.');build(s,p,'settlement',ids[0]);return;}
  if(s.phase==='setup-road'){const id=chooseRoad(s,p);if(id===undefined)throw new Error('Sem estrada inicial disponível.');build(s,p,'road',id);return;}
  if(s.phase==='roll'){rollDice(s,p,random);return;}
  if(s.phase==='robber'){
