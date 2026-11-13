@@ -18,3 +18,16 @@ test('invalid commands leave the canonical game untouched',()=>{const f=fixture(
 
 test('network schema accepts lobby, human offers, buys and all viewer positions',()=>{const f=fixture(),r=f.room;for(let p=0;p<3;p++)assert.doesNotThrow(()=>assertOnlineView(r.view(p)));const s=r.state!;s.phase='build';s.setupStep=6;s.players[0].cards.lenha=2;s.bank.lenha-=2;s.players[1].cards.barro=1;s.bank.barro--;f.command(0,{kind:'offer',to:1,give:{couro:0,lenha:2,barro:0,pedra:0,milho:0},take:{couro:0,lenha:0,barro:1,pedra:0,milho:0}});for(let p=0;p<3;p++)assertOnlineView(r.view(p));});
 test('six seats, 38 hexes and all private projections stay synchronized',()=>{let now=100000;const r=new Room('ABC234',()=>now,{players:6,mapSize:'double'});for(let p=0;p<6;p++)r.join('Pessoa '+p);r.start(0);let i=0;while(r.state!.phase.startsWith('setup')){const s=r.state!,p=s.current;r.command(p,{kind:'build',build:s.phase==='setup-house'?'settlement':'road',id:s.phase==='setup-house'?legalHouses(s,p,true)[0]:legalRoads(s,p)[0]},r.version,'six-player-'+i++);now+=4000;}assert.equal(boardFor(r.state!).tiles.length,38);for(let p=0;p<6;p++){const v=r.view(p);assert.equal(v.members.length,6);assert.equal(v.state!.players.length,6);assert.equal(v.state!.current,(6-p)%6);assertOnlineView(v);}const restored=Room.restore(r.dump());assert.equal(restored.members.length,6);assert.equal(restored.options.mapSize,'double');});
+
+test('player colors synchronize by seat, persist and cannot collide or alter other players',()=>{
+ const r=new Room('ABC234'),a=r.join('Maria'),b=r.join('João');
+ r.command(a.seat,{kind:'color',color:0x3466bd},r.version,'color-choice-001');
+ assert.equal(r.view(0).colors![0],0x3466bd);assert.equal(r.view(1).colors![2],0x3466bd);
+ assertOnlineView(r.view(1));
+ assert.throws(()=>r.command(b.seat,{kind:'color',color:0x3466bd},r.version,'color-choice-002'),/em uso/);
+ assert.throws(()=>parseCommand({kind:'color',color:'343'}));
+ assert.throws(()=>parseCommand({kind:'color',color:123}));
+ const restored=Room.restore(r.dump());assert.deepEqual(restored.colors,r.colors);
+ r.start(0);r.command(1,{kind:'color',color:0xc63e3e},r.version,'color-choice-003');
+ assert.equal(r.view(0).colors![1],0xc63e3e);assert.equal(r.state!.current,0);
+});
