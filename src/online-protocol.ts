@@ -1,7 +1,8 @@
+import {validWar} from './war';
 import {boardFor} from './sertao-rules';
 import type {GameOptions} from './sertao-rules';
 import type {State,Build,Resource,Wallet} from './sertao-rules';
-export type OnlineCommand={kind:'color';color:number}|{kind:'build';build:Build;id:number}|{kind:'roll'|'end'|'buy'|'finish'}|{kind:'robber';id:number}|{kind:'bank';from:Resource;to:Resource;amount:number}|{kind:'play';id:number;choice?:Resource|Resource[]}|{kind:'offer';to:number;give:Wallet;take:Wallet}|{kind:'reply';offerId:string;accept:boolean};
+export type OnlineCommand={kind:'recruit'}|{kind:'fortify';id:number}|{kind:'campaign';target:'building'|'tile';id:number;troops:number}|{kind:'color';color:number}|{kind:'build';build:Build;id:number}|{kind:'roll'|'end'|'buy'|'finish'}|{kind:'robber';id:number}|{kind:'bank';from:Resource;to:Resource;amount:number}|{kind:'play';id:number;choice?:Resource|Resource[]}|{kind:'offer';to:number;give:Wallet;take:Wallet}|{kind:'reply';offerId:string;accept:boolean};
 export interface OnlineEvent{id:number;at:number;kind:'start'|'roll'|'build'|'action';build?:Build;dice?:[number,number]}
 export interface TradeOffer{id:string;from:number;to:number;give:Wallet;take:Wallet;expires:number}
 export interface OnlineView{serverVersion?:string;serverBuild?:string;protocol?:number;code:string;colors?:number[];options?:GameOptions;version:number;seat:number;host:boolean;started:boolean;members:{name:string;connected:boolean;bot:boolean;automatic?:boolean}[];state:State|null;totals:number[];handCounts:number[];scores:number[];offer:TradeOffer|null;event:OnlineEvent|null;busyUntil:number;serverTime:number}
@@ -19,5 +20,6 @@ export function assertOnlineView(value:unknown):asserts value is OnlineView{
  if(s.longestRoadOwner!==undefined&&s.longestRoadOwner!==null&&!player(s.longestRoadOwner))bad();
  if(s.mapSize!==undefined&&!['classic','double'].includes(s.mapSize))bad();const topology=boardFor(s);if(s.robber>=topology.tiles.length)bad();
  if(Object.entries(s.buildings).some(([id,b]:[string,any])=>!/^\d+$/.test(id)||!integer(+id,0,topology.nodes.length-1)||!object(b)||!player(b.owner)||!integer(b.level,1,2))||Object.entries(s.roads).some(([id,p])=>!/^\d+$/.test(id)||!integer(+id,0,topology.edges.length-1)||!player(p)))bad();
+ if(!validWar(s))bad();
  const d=s.development;if(d!==undefined){if(!object(d)||!Array.isArray(d.deck)||d.deck.length>25||!d.deck.every(kind)||!array(d.hands,count,h=>Array.isArray(h)&&h.length<=25&&h.every(card))||!Array.isArray(d.discard)||d.discard.length>25||!d.discard.every((c:any)=>card(c)&&player(c.owner)&&integer(c.playedTurn))||!(d.armyOwner===null||player(d.armyOwner))||!(d.robberReturn===null||['roll','build'].includes(d.robberReturn)))bad();if(d.freeRoads!==null&&(!object(d.freeRoads)||!player(d.freeRoads.owner)||!integer(d.freeRoads.left,1,2)||!['roll','build'].includes(d.freeRoads.returnPhase)))bad();}
 }

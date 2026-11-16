@@ -26,3 +26,6 @@ A versão instalada aparece no iniciador e em Opções. Se houver aviso de vers�
 
 RECONEXÃO
 A vaga é preservada. Após 90 segundos de ausência, o computador joga temporariamente; ao voltar com a mesma sessão, você retoma o controle. O computador anfitrião precisa continuar ligado e com o servidor aberto.
+
+GUERRA DO SERTÃO
+Na criação da sala, escolha o modo Guerra do Sertão. Esta versão usa o protocolo 3; atualize também as abas do jogo. Partidas clássicas continuam disponíveis.

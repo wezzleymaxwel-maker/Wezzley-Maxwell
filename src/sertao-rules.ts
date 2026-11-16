@@ -1,3 +1,4 @@
+import {createWar,validWar,botWarStep,type WarState} from './war';
 import {longestRoadLength,updateLongestRoad} from './longest-road';
 export {longestRoadLength,updateLongestRoad} from './longest-road';
 import {createDevelopment,developmentCost,developmentInfo,developmentTurn,validateDevelopment,type DevelopmentCard,type DevelopmentState} from './development';
@@ -61,14 +62,14 @@ export function boardFor(s:{boardSeed?:number|null;mapSize?:MapSize}){
 export type Phase='setup-house'|'setup-road'|'roll'|'build'|'robber'|'finished'|'free-roads';
 export interface Building {owner:number;level:1|2}
 export interface State {
- longestRoadOwner?:number|null;mapSize?:MapSize;onlineTurn?:number;development?:DevelopmentState;boardSeed?:number|null;version:1;current:number;round:number;phase:Phase;setupStep:number;lastNode:number|null;
+ war?:WarState;longestRoadOwner?:number|null;mapSize?:MapSize;onlineTurn?:number;development?:DevelopmentState;boardSeed?:number|null;version:1;current:number;round:number;phase:Phase;setupStep:number;lastNode:number|null;
  players:{cards:Wallet}[];bank:Wallet;buildings:Record<number,Building>;roads:Record<number,number>;
  robber:number;dice:[number,number]|null;winner:number|null;log:string[];
 }
 const wallet=(n=0):Wallet=>({couro:n,lenha:n,barro:n,pedra:n,milho:n});
 export const playerNames=['Você','Dona Cícera','Seu Zé','Dona Lúcia','Seu Antônio','Dona Rosa'];
-export interface GameOptions {players?:number;mapSize?:MapSize}
-export function newGame(boardSeed:number|null=Math.floor(Math.random()*4294967296),options:GameOptions={}):State{const count=options.players??3;if(!Number.isInteger(count)||count<2||count>6)throw Error('Escolha de 2 a 6 jogadores.');const mapSize=options.mapSize??'classic';return{longestRoadOwner:null,mapSize,development:createDevelopment(boardSeed??0,count),boardSeed,version:1,current:0,round:1,phase:'setup-house',setupStep:0,lastNode:null,players:Array.from({length:count},()=>({cards:wallet()})),bank:wallet(bankCapacity({mapSize})),buildings:{},roads:{},robber:boardFor({boardSeed,mapSize}).tiles.find(t=>!t.resource)!.id,dice:null,winner:null,log:['Escolha o primeiro local da sua Casa de Taipa.']};}
+export interface GameOptions {players?:number;mapSize?:MapSize;mode?:'classic'|'war'}
+export function newGame(boardSeed:number|null=Math.floor(Math.random()*4294967296),options:GameOptions={}):State{const count=options.players??3;if(!Number.isInteger(count)||count<2||count>6)throw Error('Escolha de 2 a 6 jogadores.');if(options.mode!==undefined&&!['classic','war'].includes(options.mode))throw Error('Modo de jogo inválido.');const mapSize=options.mapSize??'classic';return{...(options.mode==='war'?{war:createWar(count)}:{}),longestRoadOwner:null,mapSize,development:createDevelopment(boardSeed??0,count),boardSeed,version:1,current:0,round:1,phase:'setup-house',setupStep:0,lastNode:null,players:Array.from({length:count},()=>({cards:wallet()})),bank:wallet(bankCapacity({mapSize})),buildings:{},roads:{},robber:boardFor({boardSeed,mapSize}).tiles.find(t=>!t.resource)!.id,dice:null,winner:null,log:['Escolha o primeiro local da sua Casa de Taipa.']};}
 
 export function points(s:State,p:number){return Object.values(s.buildings).filter(b=>b.owner===p).reduce((n,b)=>n+b.level,0)+(s.development?.hands[p].filter(c=>developmentInfo[c.kind].prestige).length??0)+(s.development?.armyOwner===p?2:0)+(s.longestRoadOwner===p?2:0);}
 export function publicPoints(s:State,p:number,viewer=0){return points(s,p)-(p!==viewer&&s.phase!=='finished'?(s.development?.hands[p].filter(c=>developmentInfo[c.kind].prestige).length??0):0);}
@@ -88,7 +89,7 @@ export function legalCities(s:State,p=s.current){return Object.values(s.building
 function note(s:State,message:string){s.log.push(message);if(s.log.length>50)s.log.shift();}
 function checkPlayer(s:State,p:number){if(s.winner!==null)throw new Error('A partida já terminou.');if(s.current!==p)throw new Error('Espere a sua vez.');}
 function pay(s:State,p:number,kind:Build){if(!affordable(s,p,kind))throw new Error('Você ainda não tem os recursos necessários.');for(const r of resources){const n=costs[kind][r]??0;s.players[p].cards[r]-=n;s.bank[r]+=n;}}
-function victory(s:State,p:number){if(points(s,p)>=TARGET){s.winner=p;s.phase='finished';if(s.development){s.development.freeRoads=null;s.development.robberReturn=null;}note(s,`${playerNames[p]} venceu com ${points(s,p)} pontos!`);}}
+export function victory(s:State,p:number){if(points(s,p)>=TARGET){s.winner=p;s.phase='finished';if(s.development){s.development.freeRoads=null;s.development.robberReturn=null;}note(s,`${playerNames[p]} venceu com ${points(s,p)} pontos!`);}}
 function give(s:State,p:number,r:Resource,n:number){const amount=Math.min(n,s.bank[r]);s.bank[r]-=amount;s.players[p].cards[r]+=amount;}
 export function build(s:State,p:number,kind:Build,id:number){
  const map=boardFor(s);
@@ -123,8 +124,8 @@ export function rollDice(s:State,p:number,random:()=>number=Math.random){
   s.phase='robber';note(s,'Mova o Cobrador do Coronel para outro terreno. Ele ficará sem produzir.');return sum;
  }
  const demand=resources.reduce((out,r)=>(out[r]=[],out),{} as Record<Resource,{owner:number;amount:number}[]>);
- for(const t of boardFor(s).tiles){if(t.number!==sum||!t.resource||t.id===s.robber)continue;for(const node of t.nodes){const b=s.buildings[node];if(b)demand[t.resource].push({owner:b.owner,amount:b.level});}}
- const received=[0,0,0];
+ for(const t of boardFor(s).tiles){if(t.number!==sum||!t.resource||t.id===s.robber)continue;if(s.war?.claims[t.id]!==undefined){demand[t.resource].push({owner:s.war.claims[t.id],amount:2});continue;}for(const node of t.nodes){const b=s.buildings[node];if(b)demand[t.resource].push({owner:b.owner,amount:b.level});}}
+ const received=Array(s.players.length).fill(0);
  for(const r of resources){const total=demand[r].reduce((n,a)=>n+a.amount,0);if(total>s.bank[r]){note(s,`O banco ficou sem ${names[r]}; esta produção não foi distribuída.`);continue;}for(const a of demand[r]){give(s,a.owner,r,a.amount);received[a.owner]+=a.amount;}}
  if(!received.some(Boolean))note(s,'Nenhuma construção recebeu recursos nesta rodada.');else note(s,received.map((n,i)=>n?`${playerNames[i]}: +${n}`:'').filter(Boolean).join(' · '));
  s.phase='build';return sum;
@@ -199,7 +200,7 @@ export function playDevelopment(s:State,p:number,id:number,choice?:Resource|Reso
  victory(s,p);
 }
 export function finishFreeRoads(s:State,p:number){checkPlayer(s,p);const pending=s.development?.freeRoads;if(s.phase!=='free-roads'||!pending||pending.owner!==p||pending.left===2)throw new Error('Coloque pelo menos uma estrada do Mutirão.');s.phase=pending.returnPhase;s.development!.freeRoads=null;}
-export function endTurn(s:State,p:number){checkPlayer(s,p);if(s.phase!=='build')throw new Error('Conclua a ação indicada antes de terminar o turno.');victory(s,p);if(s.winner!==null)return;s.current=(p+1)%s.players.length;if(s.current===0)s.round++;s.phase='roll';s.dice=null;note(s,`Vez de ${playerNames[s.current]}.`);victory(s,s.current);}
+export function endTurn(s:State,p:number){checkPlayer(s,p);if(s.phase!=='build')throw new Error('Conclua a ação indicada antes de terminar o turno.');victory(s,p);if(s.winner!==null)return;s.current=(p+1)%s.players.length;if(s.current===0)s.round++;s.phase='roll';s.dice=null;if(s.war){s.war.acted=false;s.war.recruited=0;}note(s,`Vez de ${playerNames[s.current]}.`);victory(s,s.current);}
 export function scoreNode(id:number,board=map,numbersKnown=true){return board.nodes[id].tiles.reduce((n,tid)=>{const t=board.tiles[tid];return n+(numbersKnown?(t.number?6-Math.abs(7-t.number):0):(t.resource?3:0));},0)+new Set(board.nodes[id].tiles.map(t=>board.tiles[t].resource).filter(Boolean)).size*1.2;}
 export function chooseRoad(s:State,p:number){
  const map=boardFor(s);
@@ -226,6 +227,7 @@ export function botStep(s:State,random:()=>number=Math.random){
   })[0];moveRobber(s,p,tile.id,random);return;
  }
  if(s.phase==='free-roads'){const id=chooseRoad(s,p);if(id!==undefined)build(s,p,'road',id);else finishFreeRoads(s,p);return;}
+ if(botWarStep(s,p,random))return;
  if(botDevelopment(s,p))return;
  const options: {kind:Build;ids:number[]}[]=[{kind:'city',ids:legalCities(s,p)},{kind:'settlement',ids:legalHouses(s,p,false)},{kind:'road',ids:legalRoads(s,p)}];
  for(const option of options){if(option.ids.length&&affordable(s,p,option.kind)){const id=option.kind==='road'?chooseRoad(s,p)!:option.ids.sort((a,b)=>scoreNode(b,boardFor(s))-scoreNode(a,boardFor(s)))[0];build(s,p,option.kind,id);return;}}
@@ -240,6 +242,7 @@ export function validSave(value:unknown):value is State {
   const s=value as State;const map=boardFor(s??{});
   if(!s||s.version!==1||!Number.isInteger(s.current)||s.current<0||s.current>=s.players.length||!['setup-house','setup-road','roll','build','robber','finished','free-roads'].includes(s.phase)||!Array.isArray(s.players)||(s.players.length<2||s.players.length>6)||!Array.isArray(s.log)||s.log.some(x=>typeof x!=='string')||!Number.isInteger(s.round)||s.round<1||!Number.isInteger(s.setupStep)||s.setupStep<0||s.setupStep>s.players.length*2||!map.tiles[s.robber]||!(s.winner===null||Number.isInteger(s.winner)&&s.winner>=0&&s.winner<s.players.length)||!s.buildings||!s.roads)return false;
   if(s.mapSize!==undefined&&!['classic','double'].includes(s.mapSize))return false;
+  if(!validWar(s))return false;
   if(!validateDevelopment(s.development,developmentTurn(s),s.current,s.phase,s.players.length))return false;
   if(s.boardSeed!=null&&(!Number.isInteger(s.boardSeed)||s.boardSeed<0||s.boardSeed>4294967295))return false;
   if(s.phase.startsWith('setup')&&(s.setupStep>=s.players.length*2||s.current!==setupFor(s)[s.setupStep]))return false;

@@ -59,7 +59,7 @@ npm run online:build
 
 ## Protocolo
 
-`GET /health` informa disponibilidade, versão e protocolo. As solicitações de jogo devem enviar `protocol: 2`; o cliente verifica a compatibilidade antes de criar ou retomar uma sala. `POST /api` aceita create, join, resume, poll, start, action e leave. Cada sessão recebe um token aleatório próprio; o token não aparece nos convites nem nas visões dos outros jogadores. Ações enviam comando, versão esperada e identificador único, nunca o estado completo. Apenas o servidor calcula resultados. O baralho usa embaralhamento criptográfico independente da semente pública do tabuleiro.
+`GET /health` informa disponibilidade, versão e protocolo. As solicitações de jogo devem enviar `protocol: 3`; o cliente verifica a compatibilidade antes de criar ou retomar uma sala. `POST /api` aceita create, join, resume, poll, start, action e leave. Cada sessão recebe um token aleatório próprio; o token não aparece nos convites nem nas visões dos outros jogadores. Ações enviam comando, versão esperada e identificador único, nunca o estado completo. Apenas o servidor calcula resultados. O baralho usa embaralhamento criptográfico independente da semente pública do tabuleiro.
 
 ## Configuração da mesa
 
@@ -73,3 +73,6 @@ A versão instalada aparece em Opções e no iniciador. `release.json` identific
 Ao reiniciar o túnel, mantenha a aba antiga aberta. Abra a sala, informe o endereço novo e escolha Reconectar à minha sala. O código e o token permanecem na aba, preservando a vaga. Fechar a aba pode perder essa sessão; os tokens não são incluídos no convite. O computador anfitrião e a janela do servidor precisam continuar ligados durante a partida.
 
 Maior estrada vale dois pontos a partir de cinco trechos contínuos. Empates preservam o dono atual; bifurcações não se somam e construções adversárias interrompem o caminho. O dono é salvo e remapeado nas visões privadas de cada participante.
+
+## Guerra do Sertão
+Na criação da sala, escolha Guerra do Sertão. Requer o servidor 1.2.0 e protocolo 3. Recrutamento, fortificação, alcance, campanhas, capturas e produção dos territórios são validados no servidor. Exércitos e domínios são públicos; cartas privadas continuam ocultas. Veja GUERRA-DO-SERTAO.md para as regras.

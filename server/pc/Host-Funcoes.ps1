@@ -27,7 +27,7 @@ function Get-CaatingaDownload([string]$Url, [string]$Path, [string]$Hash) {
         Move-Item -LiteralPath $temporary -Destination $Path -Force
     } finally { if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary -Force } }
 }
-function Wait-CaatingaHealth([string]$Url, $Process, [int]$Seconds = 60, [int]$Protocol = 2) {
+function Wait-CaatingaHealth([string]$Url, $Process, [int]$Seconds = 60, [int]$Protocol = 3) {
     $deadline = [DateTime]::UtcNow.AddSeconds($Seconds)
     while ([DateTime]::UtcNow -lt $deadline) {
         $Process.Refresh()
